@@ -141,7 +141,7 @@ _inicio_landing = time.time()
 _erros_landing  = []
 
 try:
-    present = {f.name for f in dbutils.fs.ls(SOURCES_PATH)}
+    present = set(os.listdir(SOURCES_PATH))
     missing = []
     for fname in EXPECTED_FILES:
         status = "OK " if fname in present else "FALTANDO"

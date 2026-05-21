@@ -20,9 +20,9 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 
 # DBTITLE 1,Paths - Sources e Landing
 
-SOURCES_VOLUME = f"/Volumes/{CATALOG}/landing/storage_files/sources_data"
-
-SOURCES_PATH = SOURCES_VOLUME
+# Arquivos raw lidos direto do Workspace Repos — sem necessidade de upload para Volume
+_current_user = spark.sql("SELECT current_user()").first()[0]
+SOURCES_PATH  = f"/Workspace/Repos/{_current_user}/case_data_engineering_20052026/sources"
 
 # Parquet puro gerado pela camada Landing; lido pelos notebooks Bronze via AutoLoader
 # Estrutura: systems/{sistema}/{ano}/{mes}/{file_name_YYYYMMDDHHMMSS}.parquet
@@ -30,9 +30,10 @@ LANDING_PATH = f"/Volumes/{CATALOG}/landing/storage_files/systems"
 
 # COMMAND ----------
 
-# Armazenados em UC Volume — /tmp/ é efêmero por task em jobs serverless
-CHECKPOINT_BASE = f"{SOURCES_VOLUME}/_checkpoints"
-SCHEMA_BASE     = f"{SOURCES_VOLUME}/_cloudfiles_schema"
+# Checkpoints e schema em Volume persistente — /tmp/ é efêmero por task em jobs serverless
+_storage_volume = f"/Volumes/{CATALOG}/landing/storage_files"
+CHECKPOINT_BASE = f"{_storage_volume}/_checkpoints"
+SCHEMA_BASE     = f"{_storage_volume}/_cloudfiles_schema"
 
 # COMMAND ----------
 
