@@ -36,8 +36,7 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 # COMMAND ----------
 
 # UC Volume — workspace.default.sources (DBFS root desabilitado neste workspace)
-SOURCES_VOLUME  = "/Volumes/workspace/default/sources"
-SOURCES_DBFS    = "/FileStore/case/sources"    # mantido apenas para referência histórica
+SOURCES_VOLUME  = f"/Volumes/{CATALOG}/default/sources"
 
 SOURCES_PATH    = SOURCES_VOLUME
 
@@ -50,7 +49,7 @@ SCHEMA_BASE     = f"{SOURCES_VOLUME}/_cloudfiles_schema"
 # COMMAND ----------
 
 # Tabela controladora de execução do pipeline
-CONTROL_TABLE = f"{CATALOG}.default.pipeline_controller"
+CONTROL_TABLE = f"{CATALOG}.monitoring.pipeline_controller"
 
 # COMMAND ----------
 

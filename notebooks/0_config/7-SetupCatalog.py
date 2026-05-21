@@ -43,7 +43,7 @@ print(f"[Setup] Catalog '{CATALOG}' OK")
 
 # COMMAND ----------
 
-for schema in ["bronze", "silver", "gold", "default"]:
+for schema in ["bronze", "silver", "gold", "monitoring"]:
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{CATALOG}`.`{schema}`")
     print(f"[Setup]   {CATALOG}.{schema} OK")
 
@@ -54,10 +54,8 @@ for schema in ["bronze", "silver", "gold", "default"]:
 
 # COMMAND ----------
 
-# Volume compartilhado entre ambientes — fica no catalog workspace (neutro)
-spark.sql("CREATE SCHEMA IF NOT EXISTS `workspace`.`default`")
-spark.sql("CREATE VOLUME IF NOT EXISTS `workspace`.`default`.`sources`")
-print("[Setup] Volume workspace.default.sources OK")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS `{CATALOG}`.`default`.`sources`")
+print(f"[Setup] Volume {CATALOG}.default.sources OK")
 
 # COMMAND ----------
 
@@ -75,7 +73,7 @@ result = spark.sql(f"""
 
 print("=" * 50)
 print(f"  Catalog  : {CATALOG}")
-print(f"  Schemas  : bronze | silver | gold | default")
-print(f"  Volume   : /Volumes/workspace/default/sources")
+print(f"  Schemas  : bronze | silver | gold | monitoring")
+print(f"  Volume   : /Volumes/{CATALOG}/default/sources")
 print("=" * 50)
 result.show()
