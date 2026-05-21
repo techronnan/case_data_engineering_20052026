@@ -128,8 +128,6 @@ SOURCE_MAP = {
 }
 
 # Caminho de destino para landing zone
-LANDING_PATH = "dbfs:/FileStore/case/landing"
-
 print(f"SOURCES_PATH  : {SOURCES_PATH}")
 print(f"LANDING_PATH  : {LANDING_PATH}")
 print(f"Arquivos esperados : {len(EXPECTED_FILES)}")

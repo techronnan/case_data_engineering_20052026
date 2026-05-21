@@ -1,6 +1,5 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # Entidade BronzeLegadoRegioes
+# DBTITLE 1,BronzeLegadoRegioes
 
 # COMMAND ----------
 

@@ -1,17 +1,9 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # Entidade BronzeCrmClientes
-# MAGIC
-# MAGIC > **Nota:** Arquivos `.xlsx` não têm suporte pelo AutoLoader. Utiliza `openpyxl` para leitura direta + `spark.createDataFrame()` — sem dependência de pandas.
+# DBTITLE 1,BronzeCrmClientes
 
 # COMMAND ----------
 
 # MAGIC %run ../0_config/0-Init
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Parâmetros de Gravação
 
 # COMMAND ----------
 
@@ -23,8 +15,6 @@ file_name_saida  = 'crm_clientes'
 # COMMAND ----------
 
 # DBTITLE 1,Inicialização
-# MAGIC %md
-# MAGIC ### Inicialização do Contexto
 
 # COMMAND ----------
 

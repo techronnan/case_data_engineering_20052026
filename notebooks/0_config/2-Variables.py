@@ -25,7 +25,7 @@ SOURCES_VOLUME = f"/Volumes/{CATALOG}/landing/storage_files/sources"
 SOURCES_PATH = SOURCES_VOLUME
 
 # Parquet otimizado pela camada Landing; lido pelos notebooks Bronze via AutoLoader
-LANDING_PATH = "/FileStore/case/landing"
+LANDING_PATH = f"/Volumes/{CATALOG}/landing/storage_files/landing"
 
 # COMMAND ----------
 

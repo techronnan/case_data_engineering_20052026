@@ -1,6 +1,5 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # Entidade BronzeVendedores
+# DBTITLE 1,BronzeVendedores
 
 # COMMAND ----------
 
