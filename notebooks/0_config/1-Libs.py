@@ -1,40 +1,40 @@
 # Databricks notebook source
-
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 1-Libs
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Importação centralizada de bibliotecas |
-# MAGIC | Executado Via | `0-Init` — não executar diretamente |
+# Instalação de dependências externas
+# openpyxl: necessário para leitura de arquivos Excel (.xlsx) na camada Landing
+%pip install -q openpyxl
 
 # COMMAND ----------
 
-# MAGIC %pip install -q openpyxl
+# ============================================================================
+# IMPORTS CENTRALIZADOS DO PIPELINE
+# ============================================================================
 
-# COMMAND ----------
-
+# --- PySpark Core ---
 from pyspark.sql import DataFrame
+
+# --- Funções de Manipulação de Colunas ---
 from pyspark.sql.functions import (
-    col, lit, concat, upper, lower, trim, regexp_replace, coalesce,
-    to_date, to_timestamp, date_format, year, quarter, month,
-    weekofyear, dayofweek, datediff, when, isnull, isnan,
-    concat_ws, explode, sequence, from_json, monotonically_increasing_id,
-    current_timestamp, current_date, row_number, dense_rank,
-    sum as _sum, count as _count, avg as _avg, max as _max, min as _min
+    col, lit, concat, upper, lower, trim, regexp_replace, coalesce,  # String/Transformação
+    to_date, to_timestamp, date_format,                              # Datas/Timestamps
+    year, quarter, month, weekofyear, dayofweek, datediff,           # Extração de componentes de data
+    when, isnull, isnan,                                             # Condicional/Nulos
+    concat_ws, explode, sequence, from_json,                         # Arrays/JSON
+    monotonically_increasing_id, current_timestamp, current_date,    # IDs/Metadados
+    row_number, dense_rank,                                          # Window functions
+    sum as _sum, count as _count, avg as _avg,                       # Agregações (alias para evitar conflito com Python built-ins)
+    max as _max, min as _min
 )
+
+# --- Tipos de Dados ---
 from pyspark.sql.types import (
     StructType, StructField, StringType, IntegerType, LongType,
     DoubleType, DateType, TimestampType, BooleanType
 )
+
+# --- Window Functions ---
 from pyspark.sql.window import Window
 
+# --- Biblioteca Externa: Excel ---
 import openpyxl
 
 print("[Libs] Imports concluídos.")

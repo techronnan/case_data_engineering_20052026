@@ -1,33 +1,4 @@
 # Databricks notebook source
-
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 3-Functions
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Funções utilitárias: parse, normalização, ingestão, carga, certificação e monitoramento |
-# MAGIC | Executado Via | `0-Init` — não executar diretamente |
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Renomeação de todas as funções para padrão 3 palavras snake_case. |
-# MAGIC | 21/05/2026 | Ronnan           | `initialize_bronze_context` usa CHECKPOINT_BASE/SCHEMA_BASE (serverless). Adicionado `log_table_execution`. `process_data_load` registra automaticamente na pipeline_controller. |
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Funções de Data e Timestamp
-
-# COMMAND ----------
-
 def parse_date_multi_format(col_name: str):
     """Normaliza datas em múltiplos formatos para DateType."""
     return coalesce(
@@ -47,11 +18,6 @@ def parse_timestamp_multi_format(col_name: str):
         to_timestamp(col(col_name), "yyyy/MM/dd"),
         to_date(col(col_name), "yyyy-MM-dd").cast(TimestampType()),
     )
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Funções de Normalização
 
 # COMMAND ----------
 
@@ -116,11 +82,6 @@ def normalize_status_pedido(col_name: str):
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Funções de Ingestão — Metadados Bronze
-
-# COMMAND ----------
-
 def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
     """Adiciona colunas de rastreabilidade (_source_file, _ingested_at) para Bronze."""
     return (
@@ -128,11 +89,6 @@ def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
         .withColumn("_source_file", lit(source_file))
         .withColumn("_ingested_at", current_timestamp())
     )
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Estratégias de Carga
 
 # COMMAND ----------
 
@@ -175,11 +131,6 @@ write_delta = write_full_table
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Certificação de Qualidade
-
-# COMMAND ----------
-
 def certify_table_quality(table: str, pk_cols: list, min_rows: int = 1) -> int:
     """Certifica qualidade básica após carga: contagem mínima, PKs sem nulos, sem duplicatas."""
     df    = spark.table(table)
@@ -207,11 +158,6 @@ def certify_table_quality(table: str, pk_cols: list, min_rows: int = 1) -> int:
 
     print(f"  [CERT OK] {table} | {total:,} linhas | PKs {pk_cols} válidas")
     return total
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Funções de Contexto Bronze (AutoLoader)
 
 # COMMAND ----------
 
@@ -273,11 +219,6 @@ def upsert_delta_live(nome_tabela, caminho_gravacao, merge_condition, table_id, 
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Funções de Carga Silver / Gold
-
-# COMMAND ----------
-
 def process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert):
     """Carga completa (overwrite) usada na primeira execução ou quando tipo_carga='full'.
 
@@ -313,11 +254,6 @@ def drop_v2checkpoint_feature(table_name: str):
         spark.sql(f"ALTER TABLE {table_name} DROP FEATURE v2Checkpoint IF EXISTS")
     except Exception:
         pass
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Monitoramento — log_table_execution
 
 # COMMAND ----------
 

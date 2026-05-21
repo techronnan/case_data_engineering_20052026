@@ -1,36 +1,12 @@
 # Databricks notebook source
+# Entry point único de configuração do pipeline
+# Carrega em sequência: Libs → Variables → Functions
+# Uso: %run ../0_config/0-Init no início de cada notebook
 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 0-Init — Entry Point de Configuração
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Entry point único de configuração — carrega Libs, Variables, Functions e MonitoringLogs em sequência |
-# MAGIC | Como Usar | `%run ../0_config/0-Init` no início de cada notebook do pipeline |
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Reestruturação: 0-Init passa a ser o entry point único substituindo 4-Config. |
-# MAGIC | 21/05/2026 | Ronnan           | Carrega 6-MonitoringLogs (cria pipeline_controller + funções de monitoramento). |
-
-# COMMAND ----------
-
+# Configura timezone padrão para São Paulo (UTC-3)
 spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
 
 print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Carregamento dos Módulos de Configuração
 
 # COMMAND ----------
 

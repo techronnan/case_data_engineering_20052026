@@ -1,35 +1,23 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "2"
+# ///
+# ============================================================================
+# UNITY CATALOG - Estrutura de Catalog e Schemas
+# ============================================================================
 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC # 2-Variables
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Variáveis globais de catalog, schema, paths e estratégia de carga |
-# MAGIC | Executado Via | `0-Init` — não executar diretamente |
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Criação inicial. |
-# MAGIC | 21/05/2026 | Ronnan           | Checkpoints e schema locations migrados de /tmp/ para DBFS (compatibilidade serverless). Adicionado CONTROL_TABLE para monitoramento. |
-
-# COMMAND ----------
-
-# Unity Catalog — catálogo dinâmico por ambiente (job parameter → widget)
+# Widget para receber o parâmetro 'catalog' do job (valor padrão: dev)
+# Permite alternar entre ambientes: dev, staging, prod
 dbutils.widgets.text("catalog", "dev")
-CATALOG       = dbutils.widgets.get("catalog")
-BRONZE_SCHEMA = "bronze"
-SILVER_SCHEMA = "silver"
-GOLD_SCHEMA   = "gold"
+CATALOG = dbutils.widgets.get("catalog")
 
+# Schemas fixos dentro do catalog
+BRONZE_SCHEMA = "bronze"  # Dados brutos ingeridos (AutoLoader + streaming)
+SILVER_SCHEMA = "silver"  # Dados limpos e transformados
+GOLD_SCHEMA   = "gold"    # Modelo dimensional (fatos + dimensões)
+
+# Nomes completos (catalog.schema) para uso direto em queries
 BRONZE = f"{CATALOG}.{BRONZE_SCHEMA}"
 SILVER = f"{CATALOG}.{SILVER_SCHEMA}"
 GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
@@ -37,41 +25,68 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 # COMMAND ----------
 
 # DBTITLE 1,Paths - Sources e Landing
-# UC Volume — workspace.default.sources (DBFS root desabilitado neste workspace)
-SOURCES_VOLUME  = f"/Volumes/{CATALOG}/landing/storage_files/sources"
+# ============================================================================
+# PATHS - Arquivos e Landing Zone
+# ============================================================================
 
-# SOURCES_PATH: arquivos brutos recém-chegados (usado apenas pelo notebook Landing)
-SOURCES_PATH    = SOURCES_VOLUME
+# Volume UC para armazenamento de arquivos brutos
+SOURCES_VOLUME = f"/Volumes/{CATALOG}/landing/storage_files/sources"
 
-# LANDING_PATH: arquivos convertidos para Parquet pela camada Landing (usado pelos notebooks Bronze)
-LANDING_PATH    = "/FileStore/case/landing"
+# SOURCES_PATH: Arquivos raw recém-carregados (CSV, JSON, XLSX, pipe-delimited)
+# Usado APENAS pelo notebook Landing (00-LandingUploadSources)
+SOURCES_PATH = SOURCES_VOLUME
+
+# LANDING_PATH: Arquivos já convertidos para Parquet otimizado
+# Organizado por sistema: /FileStore/case/landing/{sistema}/
+# Usado pelos notebooks Bronze para leitura via AutoLoader
+LANDING_PATH = "/FileStore/case/landing"
 
 # COMMAND ----------
 
-# AutoLoader — subdiretórios dentro do mesmo volume (persistentes entre tasks)
-CHECKPOINT_BASE = f"{SOURCES_VOLUME}/_checkpoints"
-SCHEMA_BASE     = f"{SOURCES_VOLUME}/_cloudfiles_schema"
+# ============================================================================
+# AUTOLOADER - Checkpoints e Schema Inference
+# ============================================================================
+
+# Caminhos persistentes para metadados do AutoLoader (cloudFiles)
+# Armazenados em UC Volume para garantir persistência entre execuções
+# e entre tasks do job (evita /tmp/ que é efêmero)
+
+CHECKPOINT_BASE = f"{SOURCES_VOLUME}/_checkpoints"        # Estado de progressão do streaming
+SCHEMA_BASE     = f"{SOURCES_VOLUME}/_cloudfiles_schema"  # Schema inferido automaticamente
 
 # COMMAND ----------
 
-# Tabela controladora de execução do pipeline
+# ============================================================================
+# MONITORAMENTO - Tabela de Controle do Pipeline
+# ============================================================================
+
+# Tabela para registrar execução de cada notebook/tabela
+# Campos: tabela, inicio_execucao, fim_execucao, duracao_segundos, status, linhas_processadas, erro
 CONTROL_TABLE = f"{CATALOG}.monitoring.pipeline_controller"
 
 # COMMAND ----------
+
+# ============================================================================
+# METADADOS DO PIPELINE
+# ============================================================================
 
 # Identificação do pipeline
 PIPELINE_NAME    = "case-data-engineering"
 PIPELINE_VERSION = "1.0.0"
 CREATED_BY       = "ronnan_ok@hotmail.com"
 
-# Estratégias disponíveis
-STRATEGY_FULL  = "FULL"   # Bronze + Gold Dims
-STRATEGY_DELTA = "DELTA"  # Silver + Gold Facts
+# Estratégias de carga disponíveis
+STRATEGY_FULL  = "FULL"   # Carga completa: Bronze + Silver + Gold Dimensions
+STRATEGY_DELTA = "DELTA"  # Carga incremental: Silver + Gold Facts (upserts)
 
 # COMMAND ----------
 
 # DBTITLE 1,Aliases e Log
-# Aliases padrão var_environment (compatibilidade com notebooks de referência)
+# ============================================================================
+# ALIASES - Compatibilidade com Notebooks de Referência
+# ============================================================================
+
+# Aliases legados com nomenclatura var_* (mantidos para compatibilidade)
 var_environment   = CATALOG
 var_bronze_schema = BRONZE_SCHEMA
 var_silver_schema = SILVER_SCHEMA

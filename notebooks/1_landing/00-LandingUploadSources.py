@@ -46,6 +46,25 @@
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Validação dos Arquivos na Raiz
+
+# COMMAND ----------
+
+# DBTITLE 1,Conversão para Parquet
+# MAGIC %md
+# MAGIC ## Conversão para Parquet e Salvamento em Landing Zone
+# MAGIC
+# MAGIC Cada arquivo bruto é lido no formato original, convertido para Parquet otimizado
+# MAGIC e salvo em seu subdiretório na landing zone.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Registro de Monitoramento
+
+# COMMAND ----------
+
 # DBTITLE 1,Parâmetros e Mapeamentos
 EXPECTED_FILES = [
     "erp_pedidos_cabecalho_2025.csv",
@@ -118,11 +137,6 @@ print(f"Sistemas mapeados  : {list(SOURCE_MAP.keys())}")
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Validação dos Arquivos na Raiz
-
-# COMMAND ----------
-
 import time
 _inicio_landing = time.time()
 _erros_landing  = []
@@ -146,15 +160,6 @@ except Exception as e:
     _erros_landing.append(str(e))
     print(f"Erro ao acessar {SOURCES_PATH}: {e}")
     print("Certifique-se de ter feito o upload dos arquivos.")
-
-# COMMAND ----------
-
-# DBTITLE 1,Conversão para Parquet
-# MAGIC %md
-# MAGIC ## Conversão para Parquet e Salvamento em Landing Zone
-# MAGIC
-# MAGIC Cada arquivo bruto é lido no formato original, convertido para Parquet otimizado
-# MAGIC e salvo em seu subdiretório na landing zone.
 
 # COMMAND ----------
 
@@ -201,11 +206,6 @@ for sistema, config in SOURCE_MAP.items():
         print(f"  [ERRO] {fname}: {e}\n")
 
 print(f"\nConversão concluída. Total de registros processados: {_total_registros:,}")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Registro de Monitoramento
 
 # COMMAND ----------
 
