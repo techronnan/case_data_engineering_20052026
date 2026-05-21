@@ -35,6 +35,12 @@ resources:
           - ronnan_ok@hotmail.com
         on_success:
           - ronnan_ok@hotmail.com
+      environments:
+        - environment_key: default
+          spec:
+            client: "1"
+            dependencies:
+              - openpyxl
 
       tasks:
 
@@ -88,6 +94,7 @@ resources:
           depends_on: [{task_key: landing}]
           notebook_task:
             notebook_path: ./notebooks/2_bronze/09-BronzeComercialCanais.py
+          environment_key: default
 
         # ── 2. Silver — cada task aguarda seu bronze correspondente ─────────
         - task_key: silver_erp_cabecalho

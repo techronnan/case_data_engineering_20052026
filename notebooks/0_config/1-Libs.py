@@ -17,7 +17,7 @@
 
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import (
-    col, lit, upper, lower, trim, regexp_replace, coalesce,
+    col, lit, concat, upper, lower, trim, regexp_replace, coalesce,
     to_date, to_timestamp, date_format, year, quarter, month,
     weekofyear, dayofweek, datediff, when, isnull, isnan,
     concat_ws, explode, sequence, from_json, monotonically_increasing_id,
@@ -29,6 +29,5 @@ from pyspark.sql.types import (
     DoubleType, DateType, TimestampType, BooleanType
 )
 from pyspark.sql.window import Window
-import pandas as pd
 
 print("[Libs] Imports concluídos.")

@@ -26,10 +26,24 @@
 
 # COMMAND ----------
 
-spark.sparkContext.setLogLevel("WARN")
-spark.conf.set("spark.sql.adaptive.enabled", "true")
-spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
-spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
+try:
+    spark.sparkContext.setLogLevel("WARN")
+except Exception:
+    pass
+try:
+    spark.conf.set("spark.sql.adaptive.enabled", "true")
+except Exception:
+    pass
+
+try:
+    spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
+except Exception:
+    pass
+
+try:
+    spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
+except Exception:
+    pass
 
 print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo | AdaptiveQuery: ON")
 

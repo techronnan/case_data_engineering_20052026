@@ -14,7 +14,7 @@
 # MAGIC | Origem Fonte de Dados de Entrada | Camada Landing (XLSX) |
 # MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
 # MAGIC
-# MAGIC > **Nota:** Arquivos `.xlsx` não têm suporte pelo AutoLoader. Utiliza `pandas.read_excel()` + `spark.createDataFrame()`.
+# MAGIC > **Nota:** Arquivos `.xlsx` não têm suporte pelo AutoLoader. Utiliza `openpyxl` para leitura direta + `spark.createDataFrame()` — sem dependência de pandas.
 # MAGIC
 # MAGIC ## Histórico
 # MAGIC
@@ -43,10 +43,21 @@ print(f'caminho_gravacao_tabela : {caminho_gravacao_tabela}')
 
 # COMMAND ----------
 
+import openpyxl
+
 local_path = SOURCE_FILE.replace("/FileStore", "/dbfs/FileStore")
 
-df_pd = pd.read_excel(local_path, dtype=str)
-df = spark.createDataFrame(df_pd)
+wb    = openpyxl.load_workbook(local_path, data_only=True)
+sheet = wb.active
+rows  = list(sheet.values)
+
+headers   = [str(h) if h is not None else f"col_{i}" for i, h in enumerate(rows[0])]
+data_rows = [
+    tuple(str(v) if v is not None else None for v in row)
+    for row in rows[1:]
+]
+
+df = spark.createDataFrame(data_rows, schema=headers)
 
 df = (
     df
