@@ -74,7 +74,7 @@ for row in var_renomear:
 
 dfReadStream = dfReadStream.withColumn(
     'dsRefChave',
-    concat(lit('>>'), coalesce(col('customer_code'), lit('NULL')))
+    concat(lit('>>'), coalesce(col('customer_id'), lit('NULL')))
 )
 
 # COMMAND ----------

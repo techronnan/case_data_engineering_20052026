@@ -1,8 +1,5 @@
 # Databricks notebook source
 
-# COMMAND ----------
-
-# MAGIC %pip install openpyxl
 
 # COMMAND ----------
 
@@ -16,6 +13,10 @@
 # MAGIC | Criado Originalmente Por | Ronnan |
 # MAGIC | Finalidade | Importação centralizada de bibliotecas |
 # MAGIC | Executado Via | `0-Init` — não executar diretamente |
+
+# COMMAND ----------
+
+# MAGIC %pip install -q openpyxl
 
 # COMMAND ----------
 

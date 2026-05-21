@@ -1,5 +1,6 @@
 # Databricks notebook source
 
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -45,10 +46,4 @@ print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo")
 
 # COMMAND ----------
 
-print("=" * 60)
-print(f"  Config carregado | Pipeline: {PIPELINE_NAME} v{PIPELINE_VERSION}")
-print(f"  Catalog  : {CATALOG}")
-print(f"  Bronze   : {BRONZE}  |  Silver: {SILVER}  |  Gold: {GOLD}")
-print(f"  Monitor  : {CONTROL_TABLE}")
-print(f"  Checkpts : {CHECKPOINT_BASE}")
-print("=" * 60)
+print(f"✓ Config carregado | {PIPELINE_NAME} v{PIPELINE_VERSION} | Catalog: {CATALOG}")

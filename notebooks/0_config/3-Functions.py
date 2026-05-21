@@ -365,12 +365,4 @@ def log_table_execution(tabela: str, duracao_segundos: float = 0.0,
 
 # COMMAND ----------
 
-print("[Functions] Carregadas:")
-print("  parse_date_multi_format, parse_timestamp_multi_format")
-print("  normalize_decimal_value, normalize_uf_column, normalize_status_pedido")
-print("  add_ingestion_metadata")
-print("  write_full_table, write_delta_merge, write_delta (alias)")
-print("  certify_table_quality")
-print("  initialize_bronze_context, upsert_delta_live")
-print("  process_data_load, drop_v2checkpoint_feature")
-print("  log_table_execution")
+print("✓ Functions carregadas | Parse, Normalize, Write, Certify, AutoLoader, Monitoring")

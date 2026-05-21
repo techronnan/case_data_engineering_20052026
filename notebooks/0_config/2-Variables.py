@@ -24,7 +24,7 @@
 # COMMAND ----------
 
 # Unity Catalog — catálogo dinâmico por ambiente (job parameter → widget)
-dbutils.widgets.text("catalog", "workspace")
+dbutils.widgets.text("catalog", "dev")
 CATALOG       = dbutils.widgets.get("catalog")
 BRONZE_SCHEMA = "bronze"
 SILVER_SCHEMA = "silver"
@@ -80,13 +80,4 @@ var_bronze        = BRONZE
 var_silver        = SILVER
 var_gold          = GOLD
 
-print(f"[Variables] Catalog      : {CATALOG}")
-print(f"[Variables] Bronze       : {BRONZE}")
-print(f"[Variables] Silver       : {SILVER}")
-print(f"[Variables] Gold         : {GOLD}")
-print(f"[Variables] Sources (raw): {SOURCES_PATH}")
-print(f"[Variables] Landing (pqt): {LANDING_PATH}")
-print(f"[Variables] Checkpoints  : {CHECKPOINT_BASE}")
-print(f"[Variables] Schema loc.  : {SCHEMA_BASE}")
-print(f"[Variables] Monitor      : {CONTROL_TABLE}")
-print(f"[Variables] Pipeline     : {PIPELINE_NAME} v{PIPELINE_VERSION}")
+print(f"✓ Variables carregadas | Catalog: {CATALOG} | Bronze/Silver/Gold configurados")

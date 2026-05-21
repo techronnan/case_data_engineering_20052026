@@ -57,7 +57,7 @@ for row in var_renomear:
 
 dfReadStream = dfReadStream.withColumn(
     'dsRefChave',
-    concat(lit('>>'), coalesce(col('channel_id'), lit('NULL')))
+    concat(lit('>>'), coalesce(col('id_canal'), lit('NULL')))
 )
 
 # COMMAND ----------
