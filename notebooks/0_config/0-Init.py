@@ -22,31 +22,10 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### Configurações do Spark
+spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
+spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
 
-# COMMAND ----------
-
-try:
-    spark.sparkContext.setLogLevel("WARN")
-except Exception:
-    pass
-try:
-    spark.conf.set("spark.sql.adaptive.enabled", "true")
-except Exception:
-    pass
-
-try:
-    spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
-except Exception:
-    pass
-
-try:
-    spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
-except Exception:
-    pass
-
-print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo | AdaptiveQuery: ON")
+print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo")
 
 # COMMAND ----------
 
@@ -64,10 +43,6 @@ print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo | AdaptiveQuery: ON
 # COMMAND ----------
 
 # MAGIC %run ./3-Functions
-
-# COMMAND ----------
-
-# MAGIC %run ./6-MonitoringLogs
 
 # COMMAND ----------
 

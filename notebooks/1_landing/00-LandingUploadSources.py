@@ -61,7 +61,8 @@ EXPECTED_FILES = [
 
 # Mapeamento: subdiretório → arquivo(s) de origem
 SOURCE_MAP = {
-    "erp":         ["erp_pedidos_cabecalho_2025.csv", "erp_pedidos_itens_2025.csv"],
+    "erp_cabecalho": ["erp_pedidos_cabecalho_2025.csv"],
+    "erp_itens":     ["erp_pedidos_itens_2025.csv"],
     "legado":      ["legado_regioes_pipe.txt"],
     "vendedores":  ["vendedores.csv"],
     "atendimento": ["atendimento_ocorrencias.ndjson"],

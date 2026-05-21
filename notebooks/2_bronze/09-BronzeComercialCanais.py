@@ -43,9 +43,7 @@ print(f'caminho_gravacao_tabela : {caminho_gravacao_tabela}')
 
 # COMMAND ----------
 
-import openpyxl
-
-local_path = SOURCE_FILE.replace("/FileStore", "/dbfs/FileStore")
+local_path = SOURCE_FILE  # UC Volume: /Volumes/... acessível direto no filesystem serverless
 
 wb    = openpyxl.load_workbook(local_path, data_only=True)
 sheet = wb.active

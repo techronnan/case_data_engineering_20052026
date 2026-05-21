@@ -243,7 +243,7 @@ def upsert_delta_live(nome_tabela, caminho_gravacao, merge_condition, table_id, 
     from pyspark.sql import Window as _W
 
     def inner(batch_df, batch_id):
-        if batch_df.rdd.isEmpty():
+        if batch_df.isEmpty():
             return
         w = _W.partitionBy("dsRefChave").orderBy(_F.col(order_key).desc())
         deduped = (batch_df
@@ -255,7 +255,6 @@ def upsert_delta_live(nome_tabela, caminho_gravacao, merge_condition, table_id, 
         spark.sql(f"""
             CREATE TABLE IF NOT EXISTS {nome_tabela}
             USING DELTA
-            LOCATION '{caminho_gravacao}'
             AS SELECT * FROM {view_name} WHERE 1=0
         """)
         spark.sql(f"""
@@ -333,16 +332,18 @@ def log_table_execution(tabela: str, duracao_segundos: float = 0.0,
     """
     try:
         from pyspark.sql import Row
+        from datetime import datetime
         camada = 'gold' if '.gold.' in tabela else \
                  'silver' if '.silver.' in tabela else \
                  'bronze' if '.bronze.' in tabela else 'landing'
+        _now = datetime.now()
         row = Row(
             tabela_nome        = tabela,
             camada             = camada,
             status_execucao    = status,
             linhas_processadas = int(linhas),
-            data_execucao      = current_timestamp(),
-            ultima_atualizacao = current_timestamp(),
+            data_execucao      = _now,
+            ultima_atualizacao = _now,
             duracao_segundos   = float(duracao_segundos),
             mensagem_erro      = erro[:2000] if erro else '',
             pipeline_versao    = PIPELINE_VERSION,

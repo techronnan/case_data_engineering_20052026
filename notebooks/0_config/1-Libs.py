@@ -2,6 +2,10 @@
 
 # COMMAND ----------
 
+# MAGIC %pip install openpyxl
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # 1-Libs
 # MAGIC
@@ -29,5 +33,7 @@ from pyspark.sql.types import (
     DoubleType, DateType, TimestampType, BooleanType
 )
 from pyspark.sql.window import Window
+
+import openpyxl
 
 print("[Libs] Imports concluídos.")

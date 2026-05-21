@@ -102,9 +102,6 @@ Bronze e Silver são paralelos entre si. Fatos aguardam todas as dimensões nece
 ```
 case_data_engineering_20052026/
 ├── databricks.yml                        # Databricks Asset Bundle — dev/prod
-├── docs/
-│   ├── EXECUTIVE_SUMMARY.md             # Resumo executivo técnico
-│   └── SOLUTION_DESIGN.md               # Arquitetura detalhada (633 linhas)
 ├── sources/                              # 9 arquivos fonte originais
 │   ├── erp_pedidos_cabecalho_2025.csv
 │   ├── erp_pedidos_itens_2025.csv
@@ -292,6 +289,4 @@ ORDER BY camada, tabela_nome;
 
 ## Documentação Adicional
 
-- [docs/EXECUTIVE_SUMMARY.md](docs/EXECUTIVE_SUMMARY.md) — resumo executivo para apresentações
-- [docs/SOLUTION_DESIGN.md](docs/SOLUTION_DESIGN.md) — arquitetura detalhada (633 linhas)
 - [case_artifacts/Case - Data Engineer.pdf](case_artifacts/Case%20-%20Data%20Engineer.pdf) — enunciado original

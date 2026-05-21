@@ -22,8 +22,9 @@
 
 # COMMAND ----------
 
-# Unity Catalog — 3-part naming
-CATALOG       = "workspace"
+# Unity Catalog — catálogo dinâmico por ambiente (job parameter → widget)
+dbutils.widgets.text("catalog", "workspace")
+CATALOG       = dbutils.widgets.get("catalog")
 BRONZE_SCHEMA = "bronze"
 SILVER_SCHEMA = "silver"
 GOLD_SCHEMA   = "gold"
@@ -34,21 +35,17 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 
 # COMMAND ----------
 
-# Volume Unity Catalog para arquivos de fonte (preferível ao DBFS FileStore)
-SOURCES_VOLUME = "/Volumes/workspace/default/sources"
+# UC Volume — workspace.default.sources (DBFS root desabilitado neste workspace)
+SOURCES_VOLUME  = "/Volumes/workspace/default/sources"
+SOURCES_DBFS    = "/FileStore/case/sources"    # mantido apenas para referência histórica
 
-# Fallback DBFS (caso o Volume ainda não tenha os arquivos)
-SOURCES_DBFS   = "/FileStore/case/sources"
-
-# Path ativo (alterar para SOURCES_DBFS se necessário)
-SOURCES_PATH   = SOURCES_DBFS
+SOURCES_PATH    = SOURCES_VOLUME
 
 # COMMAND ----------
 
-# AutoLoader — paths persistentes no DBFS (obrigatório para serverless e multi-task jobs)
-# /tmp/ é efêmero por task; DBFS persiste entre execuções e garante idempotência do AutoLoader
-CHECKPOINT_BASE = "/FileStore/case/_checkpoints"
-SCHEMA_BASE     = "/FileStore/case/_cloudfiles_schema"
+# AutoLoader — subdiretórios dentro do mesmo volume (persistentes entre tasks)
+CHECKPOINT_BASE = f"{SOURCES_VOLUME}/_checkpoints"
+SCHEMA_BASE     = f"{SOURCES_VOLUME}/_cloudfiles_schema"
 
 # COMMAND ----------
 

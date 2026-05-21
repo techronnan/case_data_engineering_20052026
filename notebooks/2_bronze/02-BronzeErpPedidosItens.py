@@ -27,7 +27,7 @@
 
 # COMMAND ----------
 
-container_source = 'erp'
+container_source = 'erp_itens'
 nome_arquivo     = 'erp_pedidos_itens'
 file_name_saida  = 'erp_pedidos_itens'
 
