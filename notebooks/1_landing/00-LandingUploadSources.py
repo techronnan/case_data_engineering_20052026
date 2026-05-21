@@ -74,49 +74,58 @@ EXPECTED_FILES = [
 # Mapeamento: subdiretório → (arquivo, formato, opções de leitura)
 SOURCE_MAP = {
     "erp_cabecalho": {
+        "name": "erp_pedidos_cabecalho",
         "file": "erp_pedidos_cabecalho_2025.csv",
         "format": "csv",
-        "options": {"header": True, "inferSchema": True, "sep": ","}
+        "options": {"header": True, "inferSchema": True, "sep": ";"}
     },
     "erp_itens": {
+        "name": "erp_pedidos_itens",
         "file": "erp_pedidos_itens_2025.csv",
         "format": "csv",
         "options": {"header": True, "inferSchema": True, "sep": ","}
     },
     "legado": {
+        "name": "legado_regioes",
         "file": "legado_regioes_pipe.txt",
         "format": "csv",
         "options": {"header": True, "inferSchema": True, "sep": "|"}
     },
     "vendedores": {
+        "name": "vendedores",
         "file": "vendedores.csv",
         "format": "csv",
-        "options": {"header": True, "inferSchema": True, "sep": ","}
+        "options": {"header": True, "inferSchema": True, "sep": ";"}
     },
     "atendimento": {
+        "name": "atendimento_ocorrencias",
         "file": "atendimento_ocorrencias.ndjson",
         "format": "json",
         "options": {}
     },
     "logistica": {
+        "name": "logistica_entregas",
         "file": "logistica_entregas.json",
         "format": "json",
         "options": {"multiLine": True}
     },
     "produtos": {
+        "name": "cadastro_produtos",
         "file": "cadastro_produtos_api_dump.json",
         "format": "json",
         "options": {"multiLine": True}
     },
     "crm": {
+        "name": "crm_clientes",
         "file": "crm_clientes_export.xlsx",
         "format": "excel",
-        "options": {"header": True, "inferSchema": True}
+        "options": {}
     },
     "canais": {
+        "name": "comercial_canais",
         "file": "comercial_canais.xlsx",
         "format": "excel",
-        "options": {"header": True, "inferSchema": True}
+        "options": {}
     },
 }
 
@@ -167,14 +176,14 @@ _timestamp = _now.strftime("%Y%m%d%H%M%S")
 print(f"Convertendo arquivos brutos para Parquet... [{_timestamp}]\n")
 
 for sistema, config in SOURCE_MAP.items():
+    name  = config["name"]
     fname = config["file"]
     fmt   = config["format"]
     opts  = config["options"]
 
-    src_path  = f"{SOURCES_PATH}/{fname}"
-    file_stem = fname.rsplit(".", 1)[0]
-    dst_dir   = f"{LANDING_PATH}/{sistema}/{_ano}/{_mes}"
-    dst_file  = f"{dst_dir}/{file_stem}_{_timestamp}.parquet"
+    src_path = f"{SOURCES_PATH}/{fname}"
+    dst_dir  = f"{LANDING_PATH}/{name}/{_ano}/{_mes}"
+    dst_file = f"{dst_dir}/{name}_{_timestamp}.parquet"
 
     try:
         print(f"  [{sistema}] Lendo {fname} ({fmt})...")

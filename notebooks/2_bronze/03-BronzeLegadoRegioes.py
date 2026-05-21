@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-container_source = 'legado'
+container_source = 'legado_regioes'
 nome_arquivo     = 'legado_regioes'
 file_name_saida  = 'legado_regioes'
 

@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-container_source = 'erp_cabecalho'
+container_source = 'erp_pedidos_cabecalho'
 nome_arquivo     = 'erp_pedidos_cabecalho'
 file_name_saida  = 'erp_pedidos_cabecalho'
 

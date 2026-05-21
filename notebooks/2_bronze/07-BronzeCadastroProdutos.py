@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-container_source = 'produtos'
+container_source = 'cadastro_produtos'
 nome_arquivo     = 'cadastro_produtos'
 file_name_saida  = 'cadastro_produtos'
 

@@ -8,7 +8,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Parâmetros
-container_source = 'crm'
+container_source = 'crm_clientes'
 nome_arquivo     = 'crm_clientes'
 file_name_saida  = 'crm_clientes'
 

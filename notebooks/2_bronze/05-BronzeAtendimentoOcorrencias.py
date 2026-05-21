@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-container_source = 'atendimento'
+container_source = 'atendimento_ocorrencias'
 nome_arquivo     = 'atendimento_ocorrencias'
 file_name_saida  = 'atendimento_ocorrencias'
 

@@ -11,7 +11,7 @@
 # COMMAND ----------
 
 # DBTITLE 1,Parâmetros
-container_source = 'canais'
+container_source = 'comercial_canais'
 nome_arquivo     = 'comercial_canais'
 file_name_saida  = 'comercial_canais'
 
