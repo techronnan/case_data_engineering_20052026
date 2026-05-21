@@ -218,8 +218,12 @@ for sistema, config in SOURCE_MAP.items():
         _total_registros += count
 
         print(f"  [{sistema}] Gravando {count:,} registros → {dst_file}")
+        tmp_dir = f"{dst_dir}/_tmp_{_timestamp}"
         dbutils.fs.mkdirs(dst_dir)
-        df.toPandas().to_parquet(dst_file, index=False)
+        df.coalesce(1).write.mode("overwrite").parquet(tmp_dir)
+        part = [f.path for f in dbutils.fs.ls(tmp_dir) if f.name.endswith(".parquet")][0]
+        dbutils.fs.mv(part, dst_file)
+        dbutils.fs.rm(tmp_dir, recurse=True)
 
         print(f"  [OK] {fname} → systems/{sistema}/{_ano}/{_mes}/ ({count:,} registros)\n")
 
