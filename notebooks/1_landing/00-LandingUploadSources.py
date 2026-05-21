@@ -9,8 +9,8 @@
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
 # MAGIC | Finalidade | Ler arquivos brutos em diversos formatos, converter para Parquet otimizado e organizar em landing zone por sistema |
-# MAGIC | Origem Fonte de Dados de Entrada | DBFS `{SOURCES_PATH}/` (arquivos raw: CSV, JSON, XLSX, NDJSON, pipe-delimited) |
-# MAGIC | Destino Fonte de Dados de Saída | DBFS `/FileStore/case/landing/{sistema}/` (Parquet otimizado) |
+# MAGIC | Origem Fonte de Dados de Entrada | UC Volume `sources_data/` — arquivos raw intocados (CSV, JSON, XLSX, NDJSON, pipe-delimited) |
+# MAGIC | Destino Fonte de Dados de Saída | UC Volume `systems/{sistema}/{ano}/{mes}/{file_name_YYYYMMDDHHMMSS}.parquet` — Parquet puro, sem Delta |
 # MAGIC
 # MAGIC ## Histórico
 # MAGIC
@@ -136,6 +136,7 @@ print(f"Sistemas mapeados  : {list(SOURCE_MAP.keys())}")
 # COMMAND ----------
 
 import time
+
 _inicio_landing = time.time()
 _erros_landing  = []
 
@@ -165,40 +166,44 @@ except Exception as e:
 _erros_conversao = []
 _total_registros = 0
 
-print("Convertendo arquivos brutos para Parquet...\n")
+_now       = datetime.now()
+_ano       = _now.strftime("%Y")
+_mes       = _now.strftime("%m")
+_timestamp = _now.strftime("%Y%m%d%H%M%S")
+
+print(f"Convertendo arquivos brutos para Parquet... [{_timestamp}]\n")
 
 for sistema, config in SOURCE_MAP.items():
     fname = config["file"]
-    fmt = config["format"]
-    opts = config["options"]
-    
-    src_path = f"{SOURCES_PATH}/{fname}"
-    dst_path = f"{LANDING_PATH}/{sistema}"
-    
+    fmt   = config["format"]
+    opts  = config["options"]
+
+    src_path  = f"{SOURCES_PATH}/{fname}"
+    file_stem = fname.rsplit(".", 1)[0]
+    dst_dir   = f"{LANDING_PATH}/{sistema}/{_ano}/{_mes}"
+    dst_file  = f"{dst_dir}/{file_stem}_{_timestamp}.parquet"
+
     try:
-        # Leitura conforme formato
         print(f"  [{sistema}] Lendo {fname} ({fmt})...")
-        
+
         if fmt == "csv":
             df = spark.read.format("csv").options(**opts).load(src_path)
         elif fmt == "json":
             df = spark.read.format("json").options(**opts).load(src_path)
         elif fmt == "excel":
-            # Excel requer biblioteca com.crealytics.spark.excel
             df = spark.read.format("com.crealytics.spark.excel").options(**opts).load(src_path)
         else:
             raise ValueError(f"Formato desconhecido: {fmt}")
-        
-        # Contagem de registros
+
         count = df.count()
         _total_registros += count
-        
-        # Conversão para Parquet
-        print(f"  [{sistema}] Convertendo {count:,} registros para Parquet...")
-        df.write.mode("overwrite").parquet(dst_path)
-        
-        print(f"  [OK] {fname} → {sistema}/ ({count:,} registros)\n")
-        
+
+        print(f"  [{sistema}] Gravando {count:,} registros → {dst_file}")
+        dbutils.fs.mkdirs(dst_dir)
+        df.toPandas().to_parquet(dst_file, index=False)
+
+        print(f"  [OK] {fname} → systems/{sistema}/{_ano}/{_mes}/ ({count:,} registros)\n")
+
     except Exception as e:
         _erros_conversao.append(f"{fname}: {str(e)}")
         print(f"  [ERRO] {fname}: {e}\n")

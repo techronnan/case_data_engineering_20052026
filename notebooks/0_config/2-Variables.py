@@ -20,12 +20,13 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 
 # DBTITLE 1,Paths - Sources e Landing
 
-SOURCES_VOLUME = f"/Volumes/{CATALOG}/landing/storage_files/sources"
+SOURCES_VOLUME = f"/Volumes/{CATALOG}/landing/storage_files/sources_data"
 
 SOURCES_PATH = SOURCES_VOLUME
 
-# Parquet otimizado pela camada Landing; lido pelos notebooks Bronze via AutoLoader
-LANDING_PATH = f"/Volumes/{CATALOG}/landing/storage_files/landing"
+# Parquet puro gerado pela camada Landing; lido pelos notebooks Bronze via AutoLoader
+# Estrutura: systems/{sistema}/{ano}/{mes}/{file_name_YYYYMMDDHHMMSS}.parquet
+LANDING_PATH = f"/Volumes/{CATALOG}/landing/storage_files/systems"
 
 # COMMAND ----------
 
