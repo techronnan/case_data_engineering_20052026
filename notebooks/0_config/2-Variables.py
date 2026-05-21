@@ -1,5 +1,6 @@
 # Databricks notebook source
 
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -35,10 +36,15 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 
 # COMMAND ----------
 
+# DBTITLE 1,Paths - Sources e Landing
 # UC Volume — workspace.default.sources (DBFS root desabilitado neste workspace)
 SOURCES_VOLUME  = f"/Volumes/{CATALOG}/landing/storage_files/sources"
 
+# SOURCES_PATH: arquivos brutos recém-chegados (usado apenas pelo notebook Landing)
 SOURCES_PATH    = SOURCES_VOLUME
+
+# LANDING_PATH: arquivos convertidos para Parquet pela camada Landing (usado pelos notebooks Bronze)
+LANDING_PATH    = "/FileStore/case/landing"
 
 # COMMAND ----------
 
@@ -64,6 +70,7 @@ STRATEGY_DELTA = "DELTA"  # Silver + Gold Facts
 
 # COMMAND ----------
 
+# DBTITLE 1,Aliases e Log
 # Aliases padrão var_environment (compatibilidade com notebooks de referência)
 var_environment   = CATALOG
 var_bronze_schema = BRONZE_SCHEMA
@@ -77,7 +84,8 @@ print(f"[Variables] Catalog      : {CATALOG}")
 print(f"[Variables] Bronze       : {BRONZE}")
 print(f"[Variables] Silver       : {SILVER}")
 print(f"[Variables] Gold         : {GOLD}")
-print(f"[Variables] Sources      : {SOURCES_PATH}")
+print(f"[Variables] Sources (raw): {SOURCES_PATH}")
+print(f"[Variables] Landing (pqt): {LANDING_PATH}")
 print(f"[Variables] Checkpoints  : {CHECKPOINT_BASE}")
 print(f"[Variables] Schema loc.  : {SCHEMA_BASE}")
 print(f"[Variables] Monitor      : {CONTROL_TABLE}")

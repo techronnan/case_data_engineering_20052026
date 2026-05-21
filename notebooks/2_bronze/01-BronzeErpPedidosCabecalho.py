@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Entidade BronzeErpPedidosCabecalho
 # MAGIC
@@ -56,12 +53,10 @@ var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gra
 
 # COMMAND ----------
 
+# DBTITLE 1,Leitura via AutoLoader - Parquet
 dfReadStream = (
     spark.readStream.format('cloudFiles')
-    .option('cloudFiles.format', 'csv')
-    .option('header', 'true')
-    .option('sep', ';')
-    .option('encoding', 'UTF-8')
+    .option('cloudFiles.format', 'parquet')  # Parquet otimizado da landing
     .option('cloudFiles.inferColumnTypes', 'true')
     .option('cloudFiles.schemaLocation', schemalocal)
     .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')

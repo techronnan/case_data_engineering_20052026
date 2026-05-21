@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Entidade BronzeCadastroProdutos
 # MAGIC
@@ -41,11 +38,9 @@ var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gra
 
 # COMMAND ----------
 
-# JSON Array com structs aninhados (product, pricing, attributes)
 dfReadStream = (
     spark.readStream.format('cloudFiles')
-    .option('cloudFiles.format', 'json')
-    .option('multiLine', 'true')
+    .option('cloudFiles.format', 'parquet')
     .option('cloudFiles.inferColumnTypes', 'true')
     .option('cloudFiles.schemaLocation', schemalocal)
     .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')

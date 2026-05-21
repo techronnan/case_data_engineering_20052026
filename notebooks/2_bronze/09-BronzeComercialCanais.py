@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Entidade BronzeComercialCanais
 # MAGIC
@@ -28,66 +25,68 @@
 
 # COMMAND ----------
 
-nome_catalogo        = var_environment
-nome_tabela          = 'comercial_canais'
-tipo_carga           = 'full'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
-
-nome_gravacao_tabela    = f'{nome_catalogo}.{var_bronze_schema}.{nome_tabela}'
-caminho_gravacao_tabela = f'/delta/{var_bronze_schema}/{nome_tabela}'
-SOURCE_FILE             = f"{SOURCES_PATH}/comercial_canais.xlsx"
-
-print(f'nome_gravacao_tabela    : {nome_gravacao_tabela}')
-print(f'caminho_gravacao_tabela : {caminho_gravacao_tabela}')
+# DBTITLE 1,Parâmetros
+container_source = 'canais'
+nome_arquivo     = 'comercial_canais'
+file_name_saida  = 'comercial_canais'
 
 # COMMAND ----------
 
-local_path = SOURCE_FILE  # UC Volume: /Volumes/... acessível direto no filesystem serverless
-
-wb    = openpyxl.load_workbook(local_path, data_only=True)
-sheet = wb.active
-rows  = list(sheet.values)
-
-headers   = [str(h) if h is not None else f"col_{i}" for i, h in enumerate(rows[0])]
-data_rows = [
-    tuple(str(v) if v is not None else None for v in row)
-    for row in rows[1:]
-]
-
-df = spark.createDataFrame(data_rows, schema=headers)
-
-df = (
-    df
-    .withColumn('rastreamento_source', lit(SOURCE_FILE))
-    .withColumn('data_processamento',  current_timestamp())
-    .withColumn('dsRefChave', concat(lit('>>'), coalesce(col('channel_id'), lit('NULL'))))
+# DBTITLE 1,Inicializa contexto
+var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela = initialize_bronze_context(
+    container_source=container_source,
+    nome_arquivo=nome_arquivo,
+    file_name_saida=file_name_saida,
 )
 
-print(f"Linhas lidas : {df.count():,}")
+# COMMAND ----------
+
+# DBTITLE 1,Leitura Parquet
+dfReadStream = (
+    spark.readStream.format('cloudFiles')
+    .option('cloudFiles.format', 'parquet')
+    .option('cloudFiles.inferColumnTypes', 'true')
+    .option('cloudFiles.schemaLocation', schemalocal)
+    .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
+    .load(caminho_leitura)
+    .withColumn('rastreamento_source', col('_metadata.file_path'))
+)
+
+for row in var_renomear:
+    dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
+
+dfReadStream = dfReadStream.withColumn(
+    'dsRefChave',
+    concat(lit('>>'), coalesce(col('channel_id'), lit('NULL')))
+)
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_bronze_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+# DBTITLE 1,Stream write
+streamQuery = (
+    dfReadStream.writeStream
+    .format('delta')
+    .outputMode('append')
+    .foreachBatch(upsert_delta_live(
+        nome_tabela=nome_tabela,
+        caminho_gravacao=caminho_gravacao,
+        merge_condition=merge_condition,
+        table_id=table_id,
+        order_key='rastreamento_source',
+    ))
+    .queryName(nome_tabela)
+    .trigger(availableNow=True)
+    .option('checkpointLocation', checkpoint)
+    .start()
+)
 
-df.createOrReplaceTempView('df_incremental')
+import time as _time
+_t0 = _time.time()
 
-if tipo_carga == 'full' or not table_exists:
-    print('Primeira Carga ou Carga Full')
-    process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert)
-else:
-    print('Entrou na condição MERGE')
-    spark.sql(f'''
-        MERGE INTO {nome_gravacao_tabela} AS target
-        USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
-        WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
-        WHEN NOT MATCHED THEN INSERT *
-    ''').display()
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
+try:
+    streamQuery.awaitTermination()
+    _n_rows = spark.table(nome_tabela).count()
+    log_table_execution(nome_tabela, round(_time.time() - _t0, 2), 'SUCESSO', _n_rows)
+except Exception as _monitor_e:
+    log_table_execution(nome_tabela, round(_time.time() - _t0, 2), 'FALHA', 0, str(_monitor_e))
+    raise

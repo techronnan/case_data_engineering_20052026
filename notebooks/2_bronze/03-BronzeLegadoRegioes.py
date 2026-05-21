@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Entidade BronzeLegadoRegioes
 # MAGIC
@@ -43,9 +40,7 @@ var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gra
 
 dfReadStream = (
     spark.readStream.format('cloudFiles')
-    .option('cloudFiles.format', 'csv')
-    .option('header', 'true')
-    .option('sep', '|')
+    .option('cloudFiles.format', 'parquet')
     .option('cloudFiles.inferColumnTypes', 'true')
     .option('cloudFiles.schemaLocation', schemalocal)
     .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')

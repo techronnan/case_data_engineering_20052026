@@ -1,25 +1,24 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
+# DBTITLE 1,Documentação
 # MAGIC %md
-# MAGIC # Landing — Upload e Organização das Fontes
+# MAGIC # Landing — Conversão e Organização das Fontes
 # MAGIC
 # MAGIC ## Visão Geral
 # MAGIC
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Validar presença dos arquivos no DBFS e organizá-los em subdiretórios por sistema para o AutoLoader |
-# MAGIC | Origem Fonte de Dados de Entrada | Pasta `sources/` do repositório |
-# MAGIC | Destino Fonte de Dados de Saída | DBFS `{SOURCES_PATH}/{sistema}/` |
+# MAGIC | Finalidade | Ler arquivos brutos em diversos formatos, converter para Parquet otimizado e organizar em landing zone por sistema |
+# MAGIC | Origem Fonte de Dados de Entrada | DBFS `{SOURCES_PATH}/` (arquivos raw: CSV, JSON, XLSX, NDJSON, pipe-delimited) |
+# MAGIC | Destino Fonte de Dados de Saída | DBFS `/FileStore/case/landing/{sistema}/` (Parquet otimizado) |
 # MAGIC
 # MAGIC ## Histórico
 # MAGIC
 # MAGIC | Data       | Desenvolvido Por | Motivo |
 # MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e organização em subdiretórios para padrão AutoLoader. |
-# MAGIC | 21/05/2026 | Ronnan           | Migrado para 0-Init (entry point único). Parametrização via EXPECTED_FILES e SOURCE_MAP. Monitoramento via log_table_execution. |
+# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e organização em subdiretórios. |
+# MAGIC | 21/05/2026 | Ronnan           | Parametrização via EXPECTED_FILES e SOURCE_MAP. Monitoramento. |
+# MAGIC | 21/05/2026 | Ronnan           | **REFATORAÇÃO COMPLETA**: Conversão de formatos raw → Parquet otimizado na landing zone. |
 
 # COMMAND ----------
 
@@ -47,6 +46,7 @@
 
 # COMMAND ----------
 
+# DBTITLE 1,Parâmetros e Mapeamentos
 EXPECTED_FILES = [
     "erp_pedidos_cabecalho_2025.csv",
     "erp_pedidos_itens_2025.csv",
@@ -59,20 +59,60 @@ EXPECTED_FILES = [
     "comercial_canais.xlsx",
 ]
 
-# Mapeamento: subdiretório → arquivo(s) de origem
+# Mapeamento: subdiretório → (arquivo, formato, opções de leitura)
 SOURCE_MAP = {
-    "erp_cabecalho": ["erp_pedidos_cabecalho_2025.csv"],
-    "erp_itens":     ["erp_pedidos_itens_2025.csv"],
-    "legado":      ["legado_regioes_pipe.txt"],
-    "vendedores":  ["vendedores.csv"],
-    "atendimento": ["atendimento_ocorrencias.ndjson"],
-    "logistica":   ["logistica_entregas.json"],
-    "produtos":    ["cadastro_produtos_api_dump.json"],
-    "crm":         ["crm_clientes_export.xlsx"],
-    "canais":      ["comercial_canais.xlsx"],
+    "erp_cabecalho": {
+        "file": "erp_pedidos_cabecalho_2025.csv",
+        "format": "csv",
+        "options": {"header": True, "inferSchema": True, "sep": ","}
+    },
+    "erp_itens": {
+        "file": "erp_pedidos_itens_2025.csv",
+        "format": "csv",
+        "options": {"header": True, "inferSchema": True, "sep": ","}
+    },
+    "legado": {
+        "file": "legado_regioes_pipe.txt",
+        "format": "csv",
+        "options": {"header": True, "inferSchema": True, "sep": "|"}
+    },
+    "vendedores": {
+        "file": "vendedores.csv",
+        "format": "csv",
+        "options": {"header": True, "inferSchema": True, "sep": ","}
+    },
+    "atendimento": {
+        "file": "atendimento_ocorrencias.ndjson",
+        "format": "json",
+        "options": {}
+    },
+    "logistica": {
+        "file": "logistica_entregas.json",
+        "format": "json",
+        "options": {"multiLine": True}
+    },
+    "produtos": {
+        "file": "cadastro_produtos_api_dump.json",
+        "format": "json",
+        "options": {"multiLine": True}
+    },
+    "crm": {
+        "file": "crm_clientes_export.xlsx",
+        "format": "excel",
+        "options": {"header": True, "inferSchema": True}
+    },
+    "canais": {
+        "file": "comercial_canais.xlsx",
+        "format": "excel",
+        "options": {"header": True, "inferSchema": True}
+    },
 }
 
+# Caminho de destino para landing zone
+LANDING_PATH = "dbfs:/FileStore/case/landing"
+
 print(f"SOURCES_PATH  : {SOURCES_PATH}")
+print(f"LANDING_PATH  : {LANDING_PATH}")
 print(f"Arquivos esperados : {len(EXPECTED_FILES)}")
 print(f"Sistemas mapeados  : {list(SOURCE_MAP.keys())}")
 
@@ -109,34 +149,58 @@ except Exception as e:
 
 # COMMAND ----------
 
+# DBTITLE 1,Conversão para Parquet
 # MAGIC %md
-# MAGIC ## Organização em Subdiretórios (AutoLoader)
+# MAGIC ## Conversão para Parquet e Salvamento em Landing Zone
 # MAGIC
-# MAGIC Cada sistema recebe seu próprio subdiretório para que o AutoLoader possa monitorar
-# MAGIC chegadas de novos arquivos por fonte de forma independente.
+# MAGIC Cada arquivo bruto é lido no formato original, convertido para Parquet otimizado
+# MAGIC e salvo em seu subdiretório na landing zone.
 
 # COMMAND ----------
 
-_erros_organizacao = []
+# DBTITLE 1,Processamento e Conversão
+_erros_conversao = []
+_total_registros = 0
 
-print("Organizando arquivos em subdiretórios...\n")
-for container, files in SOURCE_MAP.items():
-    subdir = f"{SOURCES_PATH}/{container}"
+print("Convertendo arquivos brutos para Parquet...\n")
+
+for sistema, config in SOURCE_MAP.items():
+    fname = config["file"]
+    fmt = config["format"]
+    opts = config["options"]
+    
+    src_path = f"{SOURCES_PATH}/{fname}"
+    dst_path = f"{LANDING_PATH}/{sistema}"
+    
     try:
-        dbutils.fs.mkdirs(subdir)
-    except Exception:
-        pass
-    for fname in files:
-        src = f"{SOURCES_PATH}/{fname}"
-        dst = f"{subdir}/{fname}"
-        try:
-            dbutils.fs.cp(src, dst, recurse=False)
-            print(f"  [OK] {fname}  →  {container}/")
-        except Exception as e:
-            _erros_organizacao.append(f"{fname}: {e}")
-            print(f"  [ERRO] {fname}: {e}")
+        # Leitura conforme formato
+        print(f"  [{sistema}] Lendo {fname} ({fmt})...")
+        
+        if fmt == "csv":
+            df = spark.read.format("csv").options(**opts).load(src_path)
+        elif fmt == "json":
+            df = spark.read.format("json").options(**opts).load(src_path)
+        elif fmt == "excel":
+            # Excel requer biblioteca com.crealytics.spark.excel
+            df = spark.read.format("com.crealytics.spark.excel").options(**opts).load(src_path)
+        else:
+            raise ValueError(f"Formato desconhecido: {fmt}")
+        
+        # Contagem de registros
+        count = df.count()
+        _total_registros += count
+        
+        # Conversão para Parquet
+        print(f"  [{sistema}] Convertendo {count:,} registros para Parquet...")
+        df.write.mode("overwrite").parquet(dst_path)
+        
+        print(f"  [OK] {fname} → {sistema}/ ({count:,} registros)\n")
+        
+    except Exception as e:
+        _erros_conversao.append(f"{fname}: {str(e)}")
+        print(f"  [ERRO] {fname}: {e}\n")
 
-print("\nOrganização concluída.")
+print(f"\nConversão concluída. Total de registros processados: {_total_registros:,}")
 
 # COMMAND ----------
 
@@ -145,8 +209,9 @@ print("\nOrganização concluída.")
 
 # COMMAND ----------
 
+# DBTITLE 1,Registro de Monitoramento
 _duracao_landing = round(time.time() - _inicio_landing, 2)
-_todos_erros     = _erros_landing + _erros_organizacao
+_todos_erros     = _erros_landing + _erros_conversao
 _status_landing  = 'FALHA' if _todos_erros else 'SUCESSO'
 _msg_erro        = ' | '.join(_todos_erros) if _todos_erros else ''
 
@@ -154,8 +219,8 @@ log_table_execution(
     tabela    = f'{CATALOG}.monitoring.landing_sources',
     duracao_segundos = _duracao_landing,
     status    = _status_landing,
-    linhas    = len(EXPECTED_FILES),
+    linhas    = _total_registros,
     erro      = _msg_erro,
 )
 
-print(f"\n[Landing] Status: {_status_landing} | {_duracao_landing:.1f}s")
+print(f"\n[Landing] Status: {_status_landing} | {_duracao_landing:.1f}s | {_total_registros:,} registros")

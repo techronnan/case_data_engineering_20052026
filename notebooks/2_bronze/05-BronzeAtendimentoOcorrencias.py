@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC # Entidade BronzeAtendimentoOcorrencias
 # MAGIC
@@ -41,11 +38,9 @@ var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gra
 
 # COMMAND ----------
 
-# NDJSON = JSON Lines (uma linha por registro), multiLine=false é o padrão do AutoLoader
 dfReadStream = (
     spark.readStream.format('cloudFiles')
-    .option('cloudFiles.format', 'json')
-    .option('multiLine', 'false')
+    .option('cloudFiles.format', 'parquet')
     .option('cloudFiles.inferColumnTypes', 'true')
     .option('cloudFiles.schemaLocation', schemalocal)
     .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')

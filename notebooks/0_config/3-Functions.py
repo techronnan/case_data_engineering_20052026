@@ -1,5 +1,6 @@
 # Databricks notebook source
 
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -214,14 +215,17 @@ def certify_table_quality(table: str, pk_cols: list, min_rows: int = 1) -> int:
 
 # COMMAND ----------
 
+# DBTITLE 1,initialize_bronze_context
 def initialize_bronze_context(container_source: str, nome_arquivo: str, file_name_saida: str):
     """Inicializa paths e parâmetros de configuração para notebooks Bronze com AutoLoader.
 
+    Lê arquivos Parquet da LANDING_PATH (já convertidos pela camada landing).
     Usa CHECKPOINT_BASE e SCHEMA_BASE (DBFS) para garantir persistência em execuções
     serverless e multi-task jobs — /tmp/ é efêmero por task e não deve ser usado.
     """
-    caminho_leitura  = f"{SOURCES_PATH}/{container_source}/"
-    caminho_gravacao = f"/delta/{BRONZE_SCHEMA}/{file_name_saida}"
+    # Lê da landing zone (Parquet otimizado), não mais dos arquivos brutos
+    caminho_leitura  = f"{LANDING_PATH}/{container_source}/"
+    caminho_gravacao = f"/dbfs/mnt/delta/{BRONZE_SCHEMA}/{file_name_saida}"
     schemalocal      = f"{SCHEMA_BASE}/{container_source}/{file_name_saida}"
     checkpoint       = f"{CHECKPOINT_BASE}/{BRONZE_SCHEMA}/{container_source}/{file_name_saida}"
     nome_tabela      = f"{BRONZE}.{file_name_saida}"
@@ -229,7 +233,7 @@ def initialize_bronze_context(container_source: str, nome_arquivo: str, file_nam
     merge_condition  = "target.dsRefChave = source.dsRefChave"
     var_renomear     = []
     var_merge        = {"key": "dsRefChave"}
-    print(f"[initialize_bronze_context] Leitura     : {caminho_leitura}")
+    print(f"[initialize_bronze_context] Leitura     : {caminho_leitura} (Parquet)")
     print(f"[initialize_bronze_context] Gravação    : {caminho_gravacao}")
     print(f"[initialize_bronze_context] Tabela      : {nome_tabela}")
     print(f"[initialize_bronze_context] Checkpoint  : {checkpoint}")
