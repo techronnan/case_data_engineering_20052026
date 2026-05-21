@@ -189,9 +189,18 @@ for sistema, config in SOURCE_MAP.items():
         print(f"  [{sistema}] Lendo {fname} ({fmt})...")
 
         if fmt == "csv":
-            df = spark.read.format("csv").options(**opts).load(src_path)
+            sep = opts.get("sep", ",")
+            with open(src_path, newline="", encoding="utf-8-sig") as _f:
+                rows = list(csv.DictReader(_f, delimiter=sep))
+            df = spark.createDataFrame(rows)
         elif fmt == "json":
-            df = spark.read.format("json").options(**opts).load(src_path)
+            with open(src_path, "r", encoding="utf-8") as _f:
+                if opts.get("multiLine", False):
+                    data = json.load(_f)
+                    rows = data if isinstance(data, list) else [data]
+                else:
+                    rows = [json.loads(line) for line in _f if line.strip()]
+            df = spark.createDataFrame(rows)
         elif fmt == "excel":
             wb = openpyxl.load_workbook(src_path, read_only=True, data_only=True)
             ws = wb.active
