@@ -151,7 +151,7 @@ _status_landing  = 'FALHA' if _todos_erros else 'SUCESSO'
 _msg_erro        = ' | '.join(_todos_erros) if _todos_erros else ''
 
 log_table_execution(
-    tabela    = f'{CATALOG}.default.landing_sources',
+    tabela    = f'{CATALOG}.monitoring.landing_sources',
     duracao_segundos = _duracao_landing,
     status    = _status_landing,
     linhas    = len(EXPECTED_FILES),

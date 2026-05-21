@@ -43,7 +43,7 @@ print(f"[Setup] Catalog '{CATALOG}' OK")
 
 # COMMAND ----------
 
-for schema in ["bronze", "silver", "gold", "monitoring"]:
+for schema in ["landing", "bronze", "silver", "gold", "monitoring"]:
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{CATALOG}`.`{schema}`")
     print(f"[Setup]   {CATALOG}.{schema} OK")
 
@@ -54,8 +54,9 @@ for schema in ["bronze", "silver", "gold", "monitoring"]:
 
 # COMMAND ----------
 
-spark.sql(f"CREATE VOLUME IF NOT EXISTS `{CATALOG}`.`default`.`sources`")
-print(f"[Setup] Volume {CATALOG}.default.sources OK")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS `{CATALOG}`.`landing`.`storage_files`")
+print(f"[Setup] Volume {CATALOG}.landing.storage_files OK")
+print(f"[Setup] Arquivos de entrada esperados em: /Volumes/{CATALOG}/landing/storage_files/sources/")
 
 # COMMAND ----------
 
@@ -73,7 +74,7 @@ result = spark.sql(f"""
 
 print("=" * 50)
 print(f"  Catalog  : {CATALOG}")
-print(f"  Schemas  : bronze | silver | gold | monitoring")
+print(f"  Schemas  : landing | bronze | silver | gold | monitoring")
 print(f"  Volume   : /Volumes/{CATALOG}/default/sources")
 print("=" * 50)
 result.show()

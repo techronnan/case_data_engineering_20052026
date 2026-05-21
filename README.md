@@ -173,7 +173,7 @@ Responsabilidade: copiar os arquivos fonte do repositório para o UC Volume do a
 
 | Padrão | Detalhe |
 |--------|---------|
-| Destino | `/Volumes/{catalog}/default/sources/{sistema}/arquivo` |
+| Destino | `/Volumes/{catalog}/landing/storage_files/sources/{sistema}/arquivo` |
 | Organização | Um subdiretório por sistema (`erp_cabecalho/`, `erp_itens/`, `crm/`, etc.) |
 | Sem transformação | Apenas cópia — nenhum parse, cast ou renomeação |
 | Idempotente | Sobrescreve se o arquivo já existir |
@@ -191,7 +191,7 @@ Responsabilidade: ingestão fiel do dado bruto. Nenhuma transformação de negó
 | Colunas de metadados | `rastreamento_source` (caminho do arquivo), `data_processamento` (timestamp) |
 | Estratégia de carga | `full` para XLSX; streaming `foreachBatch` + upsert para demais |
 | Schema evolution | `cloudFiles.schemaEvolutionMode: addNewColumns` |
-| Checkpoints | `/Volumes/{catalog}/default/sources/_checkpoints/{tabela}` |
+| Checkpoints | `/Volumes/{catalog}/landing/storage_files/_checkpoints/{tabela}` |
 | Função de gravação | `process_data_load()` ou `upsert_delta_live()` |
 | Monitoramento | `log_table_execution()` chamado após `awaitTermination()` |
 
@@ -427,4 +427,4 @@ Na primeira execução a task `setup` cria automaticamente o catálogo, os schem
 | `dsRefChave` | Chave determinística de dedup — garante idempotência nas cargas |
 | openpyxl sem pandas | Compatibilidade serverless — evita dependência pesada para 2 arquivos XLSX |
 | Spark Connect (serverless) | Sem `.rdd`, sem `sparkContext` — API DataFrame e SQL apenas |
-| Checkpoints no UC Volume | `/Volumes/{catalog}/default/sources/_checkpoints/` persiste entre tasks serverless |
+| Checkpoints no UC Volume | `/Volumes/{catalog}/landing/storage_files/_checkpoints/` persiste entre tasks serverless |

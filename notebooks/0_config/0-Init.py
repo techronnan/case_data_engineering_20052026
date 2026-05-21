@@ -22,7 +22,6 @@
 
 # COMMAND ----------
 
-spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
 spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
 
 print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo")

@@ -36,7 +36,7 @@ GOLD   = f"{CATALOG}.{GOLD_SCHEMA}"
 # COMMAND ----------
 
 # UC Volume — workspace.default.sources (DBFS root desabilitado neste workspace)
-SOURCES_VOLUME  = f"/Volumes/{CATALOG}/default/sources"
+SOURCES_VOLUME  = f"/Volumes/{CATALOG}/landing/storage_files/sources"
 
 SOURCES_PATH    = SOURCES_VOLUME
 
