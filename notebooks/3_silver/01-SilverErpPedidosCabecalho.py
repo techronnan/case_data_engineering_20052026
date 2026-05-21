@@ -41,44 +41,57 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = (
-    df
-    .withColumn("order_id",        upper(trim(col("order_id"))))
-    .withColumn("customer_code",   upper(trim(col("customer_code"))))
-    .withColumn("seller_id",       upper(trim(col("seller_id"))))
-    .withColumn("channel_id",      upper(trim(col("channel_id"))))
-    .withColumn("region_code",     upper(trim(col("region_code"))))
-    .withColumn("order_date",      parse_date_multi_format("order_date"))
-    .withColumn("due_date",        parse_date_multi_format("due_date"))
-    .withColumn("status",          normalize_status_pedido("status"))
-    .withColumn("gross_amount",    normalize_decimal_value("gross_amount"))
-    .withColumn("discount_amount", normalize_decimal_value("discount_amount"))
-    .withColumn("net_amount",      normalize_decimal_value("net_amount"))
-    .withColumn("payment_source",
-        when(col("payment_details").isNotNull(),
-             col("payment_details").getItem("source")).otherwise(lit(None)))
-    .withColumn("payment_priority",
-        when(col("payment_details").isNotNull(),
-             col("payment_details").getItem("priority")).otherwise(lit(None)))
-    .withColumn("has_valid_status", col("status") != "INDEFINIDO")
-    .drop("payment_details")
-    .withColumn("dsRefChave",         concat(lit('>>'), coalesce(col('order_id'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
+df_silver = spark.sql("""
+    SELECT
+        upper(trim(order_id))        AS order_id,
+        upper(trim(customer_code))   AS customer_code,
+        upper(trim(seller_id))       AS seller_id,
+        upper(trim(channel_id))      AS channel_id,
+        upper(trim(region_code))     AS region_code,
+        coalesce(
+            to_date(order_date, 'yyyy-MM-dd'),
+            to_date(order_date, 'yyyy/MM/dd'),
+            to_date(order_date, 'dd/MM/yyyy'),
+            to_date(order_date, 'MM/dd/yyyy')
+        )                            AS order_date,
+        coalesce(
+            to_date(due_date, 'yyyy-MM-dd'),
+            to_date(due_date, 'yyyy/MM/dd'),
+            to_date(due_date, 'dd/MM/yyyy'),
+            to_date(due_date, 'MM/dd/yyyy')
+        )                            AS due_date,
+        CASE
+            WHEN upper(status) IN ('FATURADO')                                    THEN 'FATURADO'
+            WHEN upper(status) IN ('CANCELADO')                                   THEN 'CANCELADO'
+            WHEN upper(status) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
+            WHEN upper(status) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
+            ELSE 'INDEFINIDO'
+        END                          AS status,
+        cast(regexp_replace(gross_amount,    ',', '.') as double) AS gross_amount,
+        cast(regexp_replace(discount_amount, ',', '.') as double) AS discount_amount,
+        cast(regexp_replace(net_amount,      ',', '.') as double) AS net_amount,
+        payment_details.source       AS payment_source,
+        payment_details.priority     AS payment_priority,
+        (CASE
+            WHEN upper(status) IN ('FATURADO')                                    THEN 'FATURADO'
+            WHEN upper(status) IN ('CANCELADO')                                   THEN 'CANCELADO'
+            WHEN upper(status) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
+            WHEN upper(status) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
+            ELSE 'INDEFINIDO'
+        END) != 'INDEFINIDO'         AS has_valid_status,
+        rastreamento_source,
+        concat('>>', coalesce(upper(trim(order_id)), 'NULL')) AS dsRefChave,
+        current_timestamp()          AS data_processamento
+    FROM v_source
+""")
 
-print(f"Linhas entrada : {df.count():,}")
 print(f"Linhas saída   : {df_silver.count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 

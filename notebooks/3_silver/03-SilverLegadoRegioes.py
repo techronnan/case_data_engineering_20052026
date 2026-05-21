@@ -41,48 +41,52 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-from pyspark.sql.functions import create_map
-from itertools import chain
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+df_silver = spark.sql("""
+    WITH normalizado AS (
+        SELECT
+            CASE upper(trim(regional_code))
+                WHEN 'SUL'      THEN 'S'
+                WHEN 'NORTE'    THEN 'N'
+                WHEN 'NORDESTE' THEN 'NE'
+                WHEN 'CENTRO'   THEN 'CO'
+                WHEN 'SUDESTE'  THEN 'SE'
+                WHEN 'CO'       THEN 'CO'
+                ELSE upper(trim(regional_code))
+            END                                AS regional_code,
+            cast(active_flag as int)           AS active_flag,
+            region_name,
+            manager,
+            state,
+            rastreamento_source
+        FROM v_source
+        WHERE cast(active_flag as int) = 1
+          AND upper(trim(regional_code)) != 'XX'
+    ),
+    dedup AS (
+        SELECT *,
+            row_number() OVER (PARTITION BY regional_code ORDER BY active_flag DESC) AS _rn
+        FROM normalizado
+    )
+    SELECT
+        regional_code,
+        active_flag,
+        region_name,
+        manager,
+        state,
+        rastreamento_source,
+        concat('>>', coalesce(regional_code, 'NULL')) AS dsRefChave,
+        current_timestamp()                           AS data_processamento
+    FROM dedup
+    WHERE _rn = 1
+""")
 
-REGION_CODE_MAP = {
-    "SUL": "S", "NORTE": "N", "NORDESTE": "NE",
-    "CENTRO": "CO", "SUDESTE": "SE", "CO": "CO"
-}
-map_expr = create_map([lit(x) for x in chain(*REGION_CODE_MAP.items())])
-
-df_norm = (
-    df
-    .withColumn("regional_code", upper(trim(col("regional_code"))))
-    .withColumn("regional_code",
-        coalesce(map_expr[col("regional_code")], col("regional_code")))
-    .withColumn("active_flag", col("active_flag").cast(IntegerType()))
-    .filter((col("active_flag") == 1) & (col("regional_code") != "XX"))
-)
-
-w = Window.partitionBy("regional_code").orderBy(col("active_flag").desc())
-df_silver = (
-    df_norm
-    .withColumn("_rn", row_number().over(w))
-    .filter(col("_rn") == 1)
-    .drop("_rn")
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('regional_code'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"Linhas bronze : {df.count():,}")
 print(f"Linhas silver : {df_silver.count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 

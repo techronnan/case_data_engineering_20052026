@@ -41,25 +41,30 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = (
-    df
-    .withColumn("order_id",      upper(trim(col("order_id"))))
-    .withColumn("product_code",  upper(trim(col("product_code"))))
-    .withColumn("quantity",      col("quantity").cast(DoubleType()))
-    .withColumn("unit_price",    normalize_decimal_value("unit_price"))
-    .withColumn("total_item",    normalize_decimal_value("total_item"))
-    .withColumn("item_status",   upper(trim(col("item_status"))))
-    .withColumn("is_return",     col("quantity") < 0)
-    .withColumn("total_item_expected", col("quantity") * col("unit_price"))
-    .withColumn("total_item_diverge",
-        (abs(col("total_item") - col("total_item_expected")) > 0.01))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('order_id'), lit('NULL')),
-               lit('>>'), coalesce(col('item_seq').cast('string'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
+df_silver = spark.sql("""
+    SELECT
+        upper(trim(order_id))                                        AS order_id,
+        upper(trim(product_code))                                    AS product_code,
+        cast(quantity as double)                                     AS quantity,
+        cast(regexp_replace(unit_price, ',', '.') as double)         AS unit_price,
+        cast(regexp_replace(total_item, ',', '.') as double)         AS total_item,
+        upper(trim(item_status))                                     AS item_status,
+        item_seq,
+        rastreamento_source,
+        cast(quantity as double) < 0                                 AS is_return,
+        cast(quantity as double) * cast(regexp_replace(unit_price, ',', '.') as double)
+                                                                     AS total_item_expected,
+        abs(
+            cast(regexp_replace(total_item, ',', '.') as double) -
+            cast(quantity as double) * cast(regexp_replace(unit_price, ',', '.') as double)
+        ) > 0.01                                                     AS total_item_diverge,
+        concat('>>', coalesce(upper(trim(order_id)), 'NULL'),
+               '>>', coalesce(cast(item_seq as string), 'NULL'))     AS dsRefChave,
+        current_timestamp()                                          AS data_processamento
+    FROM v_source
+""")
 
 print(f"Linhas        : {df_silver.count():,}")
 print(f"Devoluções    : {df_silver.filter(col('is_return')).count():,}")
@@ -67,12 +72,7 @@ print(f"Divergências  : {df_silver.filter(col('total_item_diverge')).count():,}
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 

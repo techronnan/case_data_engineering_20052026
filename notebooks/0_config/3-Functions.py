@@ -93,7 +93,6 @@ def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
 # COMMAND ----------
 
 def write_full_table(df: DataFrame, table: str, overwrite_schema: bool = True) -> int:
-    """Estratégia FULL LOAD — substitui toda a tabela (overwrite)."""
     (df.write
        .format("delta")
        .mode("overwrite")
@@ -106,7 +105,6 @@ def write_full_table(df: DataFrame, table: str, overwrite_schema: bool = True) -
 
 def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
                       temp_view: str = "_src_updates") -> int:
-    """Estratégia DELTA — MERGE INTO (upsert) por chave(s) primária(s)."""
     df.createOrReplaceTempView(temp_view)
     spark.sql(f"""
         CREATE TABLE IF NOT EXISTS {table}
@@ -114,7 +112,7 @@ def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
         AS SELECT * FROM {temp_view} WHERE 1 = 0
     """)
     on_clause = " AND ".join([f"tgt.`{c}` = src.`{c}`" for c in pk_cols])
-    result = spark.sql(f"""
+    spark.sql(f"""
         MERGE INTO {table} AS tgt
         USING {temp_view}  AS src
         ON {on_clause}
@@ -126,7 +124,6 @@ def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
     return count
 
 
-# Alias retrocompatível
 write_delta = write_full_table
 
 # COMMAND ----------

@@ -41,27 +41,67 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_flat = (
-    df
-    .select(
-        upper(trim(col("delivery_id"))).alias("delivery_id"),
-        upper(trim(col("order_ref"))).alias("order_id"),
-        col("carrier.name").alias("carrier_name"),
-        col("carrier.mode").alias("carrier_mode"),
-        upper(trim(col("delivery_status"))).alias("delivery_status"),
-        parse_timestamp_multi_format("timestamps.shipped_at").alias("shipped_at"),
-        parse_timestamp_multi_format("timestamps.delivered_at").alias("delivered_at"),
-        col("destination.state").alias("dest_state"),
-        col("destination.city").alias("dest_city"),
-        col("cost").cast(DoubleType()).alias("cost"),
-        col("rastreamento_source"),
-    )
-    .withColumn("delivery_days", datediff(col("delivered_at"), col("shipped_at")))
-    .withColumn("is_late",
-        when(col("delivery_days") > 7, lit(True)).otherwise(lit(False)))
-)
+df_flat = spark.sql("""
+    SELECT
+        upper(trim(delivery_id))         AS delivery_id,
+        upper(trim(order_ref))           AS order_id,
+        carrier.name                     AS carrier_name,
+        carrier.mode                     AS carrier_mode,
+        upper(trim(delivery_status))     AS delivery_status,
+        coalesce(
+            to_timestamp(`timestamps.shipped_at`,   "yyyy-MM-dd'T'HH:mm:ss"),
+            to_timestamp(`timestamps.shipped_at`,   'yyyy-MM-dd HH:mm:ss'),
+            to_timestamp(`timestamps.shipped_at`,   'dd/MM/yyyy HH:mm'),
+            to_timestamp(`timestamps.shipped_at`,   'yyyy/MM/dd'),
+            cast(to_date(`timestamps.shipped_at`,   'yyyy-MM-dd') as timestamp)
+        )                                AS shipped_at,
+        coalesce(
+            to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
+            to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
+            to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
+            to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
+            cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
+        )                                AS delivered_at,
+        destination.state                AS dest_state,
+        destination.city                 AS dest_city,
+        cast(cost as double)             AS cost,
+        rastreamento_source,
+        datediff(
+            coalesce(
+                to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
+                to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
+                to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
+                to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
+                cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
+            ),
+            coalesce(
+                to_timestamp(`timestamps.shipped_at`, "yyyy-MM-dd'T'HH:mm:ss"),
+                to_timestamp(`timestamps.shipped_at`, 'yyyy-MM-dd HH:mm:ss'),
+                to_timestamp(`timestamps.shipped_at`, 'dd/MM/yyyy HH:mm'),
+                to_timestamp(`timestamps.shipped_at`, 'yyyy/MM/dd'),
+                cast(to_date(`timestamps.shipped_at`, 'yyyy-MM-dd') as timestamp)
+            )
+        )                                AS delivery_days,
+        datediff(
+            coalesce(
+                to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
+                to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
+                to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
+                to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
+                cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
+            ),
+            coalesce(
+                to_timestamp(`timestamps.shipped_at`, "yyyy-MM-dd'T'HH:mm:ss"),
+                to_timestamp(`timestamps.shipped_at`, 'yyyy-MM-dd HH:mm:ss'),
+                to_timestamp(`timestamps.shipped_at`, 'dd/MM/yyyy HH:mm'),
+                to_timestamp(`timestamps.shipped_at`, 'yyyy/MM/dd'),
+                cast(to_date(`timestamps.shipped_at`, 'yyyy-MM-dd') as timestamp)
+            )
+        ) > 7                            AS is_late
+    FROM v_source
+""")
 
 df_flat = normalize_uf_column(df_flat, "dest_state")
 

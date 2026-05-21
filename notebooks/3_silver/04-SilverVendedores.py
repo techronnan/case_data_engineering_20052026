@@ -41,46 +41,56 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-from pyspark.sql.functions import create_map
-from itertools import chain
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+df_silver = spark.sql("""
+    WITH normalizado AS (
+        SELECT
+            upper(trim(seller_id))   AS seller_id,
+            upper(trim(canal_id))    AS canal_id,
+            upper(trim(status))      AS status,
+            CASE upper(trim(regional_code))
+                WHEN 'SUL'      THEN 'S'
+                WHEN 'NORTE'    THEN 'N'
+                WHEN 'NORDESTE' THEN 'NE'
+                WHEN 'SUDESTE'  THEN 'SE'
+                WHEN 'CENTRO'   THEN 'CO'
+                ELSE upper(trim(regional_code))
+            END                      AS regional_code,
+            coalesce(
+                to_date(hire_date, 'yyyy-MM-dd'),
+                to_date(hire_date, 'yyyy/MM/dd'),
+                to_date(hire_date, 'dd/MM/yyyy'),
+                to_date(hire_date, 'MM/dd/yyyy')
+            )                        AS hire_date,
+            seller_name,
+            rastreamento_source
+        FROM v_source
+    ),
+    dedup AS (
+        SELECT *,
+            row_number() OVER (PARTITION BY seller_id ORDER BY hire_date DESC NULLS LAST) AS _rn
+        FROM normalizado
+    )
+    SELECT
+        seller_id,
+        canal_id,
+        status,
+        regional_code,
+        hire_date,
+        seller_name,
+        rastreamento_source,
+        concat('>>', coalesce(seller_id, 'NULL')) AS dsRefChave,
+        current_timestamp()                       AS data_processamento
+    FROM dedup
+    WHERE _rn = 1
+""")
 
-REGION_MAP = {"SUL": "S", "NORTE": "N", "NORDESTE": "NE", "SUDESTE": "SE", "CENTRO": "CO"}
-map_expr   = create_map([lit(x) for x in chain(*REGION_MAP.items())])
-
-df_norm = (
-    df
-    .withColumn("seller_id",     upper(trim(col("seller_id"))))
-    .withColumn("canal_id",      upper(trim(col("canal_id"))))
-    .withColumn("status",        upper(trim(col("status"))))
-    .withColumn("regional_code", upper(trim(col("regional_code"))))
-    .withColumn("hire_date",     parse_date_multi_format("hire_date"))
-    .withColumn("regional_code",
-        coalesce(map_expr[col("regional_code")], col("regional_code")))
-)
-
-w = Window.partitionBy("seller_id").orderBy(col("hire_date").desc_nulls_last())
-df_silver = (
-    df_norm
-    .withColumn("_rn", row_number().over(w))
-    .filter(col("_rn") == 1)
-    .drop("_rn")
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('seller_id'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"Bronze : {df.count():,}  |  Silver (dedup): {df_silver.count():,}")
+print(f"Silver (dedup): {df_silver.count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 
