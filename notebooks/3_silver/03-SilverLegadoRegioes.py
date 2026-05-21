@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade SilverLegadoRegioes
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.legado_regioes` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** normalização de `regional_code` (extenso → sigla), filtro `active_flag=1`,
 # MAGIC remove região XX inativa, deduplicação por `regional_code`.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 

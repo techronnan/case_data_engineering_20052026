@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade SilverCadastroProdutos
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.cadastro_produtos` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** flatten multinível (`product`, `pricing`, `attributes`), `status` uppercase,
 # MAGIC tags array → string concatenada com `|` para compatibilidade BI, `updated_at` multi-formato.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -41,39 +26,35 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = (
-    df
-    .select(
-        upper(trim(col("product.product_id"))).alias("product_code"),
-        col("product.name").alias("product_name"),
-        col("product.category").alias("category"),
-        col("product.subcategory").alias("subcategory"),
-        upper(trim(col("product.status"))).alias("status"),
-        col("pricing.list_price").cast(DoubleType()).alias("list_price"),
-        col("pricing.currency").alias("currency"),
-        col("attributes.family").alias("family"),
-        concat_ws("|", col("attributes.tags")).alias("tags"),
-        parse_timestamp_multi_format("updated_at").alias("updated_at"),
-        col("rastreamento_source"),
-    )
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('product_code'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"Linhas : {df_silver.count():,}")
-df_silver.groupBy("category").count().orderBy("count", ascending=False).show()
+df_silver = spark.sql("""
+    SELECT
+        upper(trim(product.product_id))      AS product_code,
+        product.name                         AS product_name,
+        product.category                     AS category,
+        product.subcategory                  AS subcategory,
+        upper(trim(product.status))          AS status,
+        cast(pricing.list_price AS double)   AS list_price,
+        pricing.currency                     AS currency,
+        attributes.family                    AS family,
+        array_join(attributes.tags, '|')     AS tags,
+        coalesce(
+            to_timestamp(updated_at, "yyyy-MM-dd'T'HH:mm:ss"),
+            to_timestamp(updated_at, 'yyyy-MM-dd HH:mm:ss'),
+            to_timestamp(updated_at, 'dd/MM/yyyy HH:mm'),
+            to_timestamp(updated_at, 'yyyy/MM/dd'),
+            cast(to_date(updated_at, 'yyyy-MM-dd') AS timestamp)
+        )                                    AS updated_at,
+        rastreamento_source,
+        concat('>>', coalesce(upper(trim(product.product_id)), 'NULL')) AS dsRefChave,
+        current_timestamp()                  AS data_processamento
+    FROM v_source
+""")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 
@@ -88,6 +69,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

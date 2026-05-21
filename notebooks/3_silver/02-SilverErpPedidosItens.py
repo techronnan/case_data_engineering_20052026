@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade SilverErpPedidosItens
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.erp_pedidos_itens` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** `order_id`/`product_code` uppercase, `unit_price` decimal BR,
 # MAGIC flag `is_return` para qty negativa, validação de `total_item`, status normalizado.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 

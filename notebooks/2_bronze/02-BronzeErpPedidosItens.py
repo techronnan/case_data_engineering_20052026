@@ -1,22 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Entidade BronzeErpPedidosItens
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.erp_pedidos_itens` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
-# MAGIC | 21/05/2026 | Ronnan           | Monitoramento: log_table_execution registrado após awaitTermination. |
 
 # COMMAND ----------
 

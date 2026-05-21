@@ -5,22 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade GoldDimClientes
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.dim_clientes` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Dimensão de clientes com surrogate key. Granularidade: 1 linha por cliente.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -40,43 +25,28 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_silver_schema}.crm_clientes')
+spark.table(f'{var_environment}.{var_silver_schema}.crm_clientes').createOrReplaceTempView('v_source')
 
-w = Window.orderBy("customer_code")
+df_dim = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY customer_code) AS customer_key,
+        customer_code                               AS customer_id,
+        name                                        AS customer_name,
+        segment,
+        city,
+        state,
+        region_code,
+        created_at,
+        1                                           AS InRegistroAtivo,
+        concat('>>', coalesce(customer_code, 'NULL')) AS dsRefChave,
+        current_timestamp()                         AS data_processamento
+    FROM v_source
+""")
 
-df_dim = (
-    df
-    .select(
-        "customer_code", "name", "segment",
-        "city", "state", "region_code", "created_at"
-    )
-    .withColumn("customer_key", row_number().over(w))
-    .select(
-        col("customer_key"),
-        col("customer_code").alias("customer_id"),
-        col("name").alias("customer_name"),
-        col("segment"),
-        col("city"),
-        col("state"),
-        col("region_code"),
-        col("created_at"),
-    )
-    .withColumn("InRegistroAtivo",   lit(1))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('customer_id'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"dim_clientes: {df_dim.count():,} linhas")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_dim.createOrReplaceTempView('df_incremental')
 
@@ -91,6 +61,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

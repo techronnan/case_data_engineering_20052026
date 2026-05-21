@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade GoldFactPedidos
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.fact_pedidos` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Fato central do Star Schema. Granularidade: 1 linha por pedido.
 # MAGIC Join com todas as dimensões para resolver surrogate keys.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -41,62 +26,43 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-sp     = spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_cabecalho')
-d_cli  = spark.table(f'{var_environment}.{var_gold_schema}.dim_clientes') \
-              .filter(col('InRegistroAtivo') == 1).select('customer_key', col('customer_id'))
-d_vend = spark.table(f'{var_environment}.{var_gold_schema}.dim_vendedores') \
-              .filter(col('InRegistroAtivo') == 1).select('seller_key', col('seller_id'))
-d_can  = spark.table(f'{var_environment}.{var_gold_schema}.dim_canais') \
-              .filter(col('InRegistroAtivo') == 1).select('channel_key', col('channel_id'))
-d_reg  = spark.table(f'{var_environment}.{var_gold_schema}.dim_regioes') \
-              .filter(col('InRegistroAtivo') == 1).select('region_key', col('regional_code'))
-d_tmp  = spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo') \
-              .filter(col('InRegistroAtivo') == 1).select('date_key', col('date'))
+spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_cabecalho').createOrReplaceTempView('v_sp')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_clientes').createOrReplaceTempView('v_cli')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_vendedores').createOrReplaceTempView('v_vend')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_canais').createOrReplaceTempView('v_can')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_regioes').createOrReplaceTempView('v_reg')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo').createOrReplaceTempView('v_tmp')
 
-w = Window.orderBy("order_id")
+fact = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY sp.order_id)    AS order_key,
+        sp.order_id,
+        t.date_key                                  AS order_date_key,
+        cli.customer_key,
+        vend.seller_key,
+        can.channel_key,
+        reg.region_key,
+        sp.status,
+        sp.gross_amount,
+        sp.discount_amount,
+        sp.net_amount,
+        sp.payment_source,
+        sp.payment_priority,
+        sp.due_date,
+        concat('>>', coalesce(sp.order_id, 'NULL')) AS dsRefChave,
+        current_timestamp()                         AS data_processamento
+    FROM v_sp sp
+    LEFT JOIN v_cli  cli  ON sp.customer_code = cli.customer_id   AND cli.InRegistroAtivo  = 1
+    LEFT JOIN v_vend vend ON sp.seller_id     = vend.seller_id    AND vend.InRegistroAtivo = 1
+    LEFT JOIN v_can  can  ON sp.channel_id    = can.channel_id    AND can.InRegistroAtivo  = 1
+    LEFT JOIN v_reg  reg  ON sp.region_code   = reg.regional_code AND reg.InRegistroAtivo  = 1
+    LEFT JOIN v_tmp  t    ON sp.order_date    = t.date            AND t.InRegistroAtivo    = 1
+""")
 
-fact = (
-    sp
-    .join(d_cli,  sp["customer_code"] == d_cli["customer_id"],   "left")
-    .join(d_vend, sp["seller_id"]     == d_vend["seller_id"],    "left")
-    .join(d_can,  sp["channel_id"]    == d_can["channel_id"],    "left")
-    .join(d_reg,  sp["region_code"]   == d_reg["regional_code"], "left")
-    .join(d_tmp,  sp["order_date"]    == d_tmp["date"],          "left")
-    .withColumn("order_key", row_number().over(w))
-    .select(
-        col("order_key"),
-        sp["order_id"],
-        col("date_key").alias("order_date_key"),
-        col("customer_key"),
-        col("seller_key"),
-        col("channel_key"),
-        col("region_key"),
-        sp["status"],
-        col("gross_amount"),
-        col("discount_amount"),
-        col("net_amount"),
-        col("payment_source"),
-        col("payment_priority"),
-        sp["due_date"],
-    )
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(sp["order_id"], lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"fact_pedidos  : {fact.count():,} linhas")
-print(f"Sem cliente   : {fact.filter(col('customer_key').isNull()).count():,}")
-print(f"Sem vendedor  : {fact.filter(col('seller_key').isNull()).count():,}")
-print(f"Sem data      : {fact.filter(col('order_date_key').isNull()).count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 fact.createOrReplaceTempView('df_incremental')
 
@@ -111,6 +77,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade SilverVendedores
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.vendedores` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** normaliza `regional_code` (extenso → sigla), `canal_id`/`status`/`seller_id`
 # MAGIC uppercase, `hire_date` multi-formato, deduplicação por `seller_id` (mais recente).
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 

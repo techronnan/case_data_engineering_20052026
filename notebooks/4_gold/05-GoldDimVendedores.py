@@ -5,22 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade GoldDimVendedores
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.dim_vendedores` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Dimensão de vendedores. Join com `dim_regioes` e `dim_canais` para resolver FKs.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -40,48 +25,31 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df_vend = spark.table(f'{var_environment}.{var_silver_schema}.vendedores')
-df_reg  = spark.table(f'{var_environment}.{var_gold_schema}.dim_regioes') \
-               .filter(col('InRegistroAtivo') == 1) \
-               .select('region_key', 'regional_code')
-df_can  = spark.table(f'{var_environment}.{var_gold_schema}.dim_canais') \
-               .filter(col('InRegistroAtivo') == 1) \
-               .select('channel_key', 'channel_id')
+spark.table(f'{var_environment}.{var_silver_schema}.vendedores').createOrReplaceTempView('v_vend')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_regioes').createOrReplaceTempView('v_reg')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_canais').createOrReplaceTempView('v_can')
 
-w = Window.orderBy("seller_id")
+df_dim = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY v.seller_id) AS seller_key,
+        v.seller_id,
+        v.seller_name,
+        r.region_key,
+        c.channel_key,
+        v.hire_date,
+        v.status,
+        1                                         AS InRegistroAtivo,
+        concat('>>', coalesce(v.seller_id, 'NULL')) AS dsRefChave,
+        current_timestamp()                       AS data_processamento
+    FROM v_vend v
+    LEFT JOIN v_reg r ON v.regional_code = r.regional_code AND r.InRegistroAtivo = 1
+    LEFT JOIN v_can c ON v.canal_id      = c.channel_id    AND c.InRegistroAtivo = 1
+""")
 
-df_dim = (
-    df_vend
-    .join(df_reg, df_vend["regional_code"] == df_reg["regional_code"], "left")
-    .join(df_can, df_vend["canal_id"]      == df_can["channel_id"],    "left")
-    .withColumn("seller_key", row_number().over(w))
-    .select(
-        col("seller_key"),
-        df_vend["seller_id"],
-        col("seller_name"),
-        col("region_key"),
-        col("channel_key"),
-        col("hire_date"),
-        df_vend["status"],
-    )
-    .withColumn("InRegistroAtivo",   lit(1))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(df_vend["seller_id"], lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"dim_vendedores: {df_dim.count():,} linhas")
-print(f"Sem região    : {df_dim.filter(col('region_key').isNull()).count():,}")
-print(f"Sem canal     : {df_dim.filter(col('channel_key').isNull()).count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_dim.createOrReplaceTempView('df_incremental')
 
@@ -96,6 +64,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

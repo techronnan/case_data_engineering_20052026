@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade GoldFactEntregas
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.fact_entregas` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Granularidade: 1 linha por entrega.
 # MAGIC Conecta a `fact_pedidos` via `order_key` e a `dim_tempo` para datas de envio/entrega.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -41,51 +26,37 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-se    = spark.table(f'{var_environment}.{var_silver_schema}.logistica_entregas')
-f_ped = spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos') \
-             .select('order_key', col('order_id'))
-d_tmp = spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo') \
-             .filter(col('InRegistroAtivo') == 1).select('date_key', col('date'))
+spark.table(f'{var_environment}.{var_silver_schema}.logistica_entregas').createOrReplaceTempView('v_se')
+spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos').createOrReplaceTempView('v_fp')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo').createOrReplaceTempView('v_tmp')
 
-w = Window.orderBy(se["delivery_id"])
+fact = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY se.delivery_id) AS delivery_key,
+        fp.order_key,
+        se.delivery_id,
+        d_ship.date_key                             AS shipped_date_key,
+        d_del.date_key                              AS delivered_date_key,
+        se.carrier_name,
+        se.carrier_mode,
+        se.delivery_status,
+        se.dest_state,
+        se.dest_city,
+        se.cost,
+        se.delivery_days,
+        se.is_late,
+        concat('>>', coalesce(se.delivery_id, 'NULL')) AS dsRefChave,
+        current_timestamp()                         AS data_processamento
+    FROM v_se se
+    LEFT JOIN v_fp       fp     ON se.order_id                   = fp.order_id
+    LEFT JOIN v_tmp      d_ship ON cast(se.shipped_at AS date)   = d_ship.date AND d_ship.InRegistroAtivo = 1
+    LEFT JOIN v_tmp      d_del  ON cast(se.delivered_at AS date) = d_del.date  AND d_del.InRegistroAtivo  = 1
+""")
 
-fact = (
-    se
-    .join(f_ped,              se["order_id"] == f_ped["order_id"],                      "left")
-    .join(d_tmp.alias("d_ship"), se["shipped_at"].cast("date")   == col("d_ship.date"), "left")
-    .join(d_tmp.alias("d_del"),  se["delivered_at"].cast("date") == col("d_del.date"),  "left")
-    .withColumn("delivery_key", row_number().over(w))
-    .select(
-        col("delivery_key"),
-        col("order_key"),
-        se["delivery_id"],
-        col("d_ship.date_key").alias("shipped_date_key"),
-        col("d_del.date_key").alias("delivered_date_key"),
-        col("carrier_name"),
-        col("carrier_mode"),
-        col("delivery_status"),
-        col("dest_state"),
-        col("dest_city"),
-        col("cost"),
-        col("delivery_days"),
-        col("is_late"),
-    )
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(se["delivery_id"], lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"fact_entregas : {fact.count():,} linhas")
-print(f"Atrasadas     : {fact.filter(col('is_late')).count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 fact.createOrReplaceTempView('df_incremental')
 
@@ -100,6 +71,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

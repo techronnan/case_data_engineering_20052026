@@ -5,22 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade GoldDimProdutos
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.dim_produtos` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Dimensão de produtos com surrogate key. Granularidade: 1 linha por produto ativo.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -40,42 +25,31 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_silver_schema}.cadastro_produtos')
+spark.table(f'{var_environment}.{var_silver_schema}.cadastro_produtos').createOrReplaceTempView('v_source')
 
-w = Window.orderBy("product_code")
+df_dim = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY product_code) AS product_key,
+        product_code                               AS product_id,
+        product_name,
+        category,
+        subcategory,
+        family,
+        list_price,
+        currency,
+        tags,
+        status,
+        1                                          AS InRegistroAtivo,
+        concat('>>', coalesce(product_code, 'NULL')) AS dsRefChave,
+        current_timestamp()                        AS data_processamento
+    FROM v_source
+    WHERE status = 'ATIVO'
+""")
 
-df_dim = (
-    df
-    .filter(col("status") == "ATIVO")
-    .withColumn("product_key", row_number().over(w))
-    .select(
-        col("product_key"),
-        col("product_code").alias("product_id"),
-        col("product_name"),
-        col("category"),
-        col("subcategory"),
-        col("family"),
-        col("list_price"),
-        col("currency"),
-        col("tags"),
-        col("status"),
-    )
-    .withColumn("InRegistroAtivo",   lit(1))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('product_id'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"dim_produtos: {df_dim.count():,} linhas")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_dim.createOrReplaceTempView('df_incremental')
 
@@ -90,6 +64,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

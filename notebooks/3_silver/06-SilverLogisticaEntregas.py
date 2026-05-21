@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade SilverLogisticaEntregas
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.logistica_entregas` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** flatten de structs aninhados (`carrier`, `timestamps`, `destination`),
 # MAGIC normaliza UF (`dest_state`), calcula `delivery_days`, flag `is_late` (>7 dias).
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -112,17 +97,10 @@ df_silver = (
     .withColumn("data_processamento", current_timestamp())
 )
 
-print(f"Linhas     : {df_silver.count():,}")
-print(f"Atrasadas  : {df_silver.filter(col('is_late')).count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 
@@ -137,6 +115,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

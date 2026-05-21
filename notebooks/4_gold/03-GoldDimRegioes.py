@@ -5,22 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade GoldDimRegioes
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.dim_regioes` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Dimensão de regiões geográficas. Granularidade: 1 linha por região ativa.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -40,36 +25,25 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_silver_schema}.legado_regioes')
+spark.table(f'{var_environment}.{var_silver_schema}.legado_regioes').createOrReplaceTempView('v_source')
 
-w = Window.orderBy("regional_code")
+df_dim = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY regional_code) AS region_key,
+        regional_code,
+        region_name,
+        manager                                    AS region_manager,
+        state,
+        1                                          AS InRegistroAtivo,
+        concat('>>', coalesce(regional_code, 'NULL')) AS dsRefChave,
+        current_timestamp()                        AS data_processamento
+    FROM v_source
+""")
 
-df_dim = (
-    df
-    .withColumn("region_key", row_number().over(w))
-    .select(
-        col("region_key"),
-        col("regional_code"),
-        col("region_name").alias("region_name"),
-        col("manager").alias("region_manager"),
-        col("state"),
-    )
-    .withColumn("InRegistroAtivo",   lit(1))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('regional_code'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"dim_regioes: {df_dim.count():,} linhas")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_dim.createOrReplaceTempView('df_incremental')
 
@@ -84,6 +58,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

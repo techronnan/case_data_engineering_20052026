@@ -1,8 +1,4 @@
 # Databricks notebook source
-# Entry point único de configuração do pipeline
-# Carrega em sequência: Libs → Variables → Functions
-# Uso: %run ../0_config/0-Init no início de cada notebook
-
 # Configura timezone padrão para São Paulo (UTC-3)
 spark.conf.set("spark.sql.session.timeZone", "America/Sao_Paulo")
 

@@ -5,22 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade SilverComercialCanais
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.silver.comercial_canais` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Bronze |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Silver |
-# MAGIC
 # MAGIC **Tratamentos:** `channel_id`/`channel_type`/`status` uppercase, trim em campos de texto.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, data_processamento, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -40,29 +25,22 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-df = spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}')
+spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = (
-    df
-    .withColumn("channel_id",   upper(trim(col("channel_id"))))
-    .withColumn("channel_name", trim(col("channel_name")))
-    .withColumn("channel_type", upper(trim(col("channel_type"))))
-    .withColumn("status",       upper(trim(col("status"))))
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('channel_id'), lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"Linhas : {df_silver.count():,}")
+df_silver = spark.sql("""
+    SELECT
+        upper(trim(channel_id))   AS channel_id,
+        trim(channel_name)        AS channel_name,
+        upper(trim(channel_type)) AS channel_type,
+        upper(trim(status))       AS status,
+        concat('>>', coalesce(upper(trim(channel_id)), 'NULL')) AS dsRefChave,
+        current_timestamp()       AS data_processamento
+    FROM v_source
+""")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_silver_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 df_silver.createOrReplaceTempView('df_incremental')
 
@@ -77,6 +55,6 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)

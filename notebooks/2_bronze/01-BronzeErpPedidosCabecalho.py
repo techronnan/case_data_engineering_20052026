@@ -1,22 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Entidade BronzeErpPedidosCabecalho
-# MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.erp_pedidos_cabecalho` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
-# MAGIC | 21/05/2026 | Ronnan           | Monitoramento: log_table_execution registrado após awaitTermination. |
 
 # COMMAND ----------
 
@@ -24,19 +8,9 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### Parâmetros de Inicialização
-
-# COMMAND ----------
-
 container_source = 'erp_cabecalho'
 nome_arquivo     = 'erp_pedidos_cabecalho'
 file_name_saida  = 'erp_pedidos_cabecalho'
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Inicialização do Contexto
 
 # COMMAND ----------
 
@@ -48,15 +22,9 @@ var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gra
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ### Leitura via AutoLoader com Evolução de Schema
-
-# COMMAND ----------
-
-# DBTITLE 1,Leitura via AutoLoader - Parquet
 dfReadStream = (
     spark.readStream.format('cloudFiles')
-    .option('cloudFiles.format', 'parquet')  # Parquet otimizado da landing
+    .option('cloudFiles.format', 'parquet')
     .option('cloudFiles.inferColumnTypes', 'true')
     .option('cloudFiles.schemaLocation', schemalocal)
     .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
@@ -71,11 +39,6 @@ dfReadStream = dfReadStream.withColumn(
     'dsRefChave',
     concat(lit('>>'), coalesce(col('order_id'), lit('NULL')))
 )
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Gravação via Streaming com Upsert Delta
 
 # COMMAND ----------
 

@@ -5,23 +5,8 @@
 # MAGIC %md
 # MAGIC # Entidade GoldFactOcorrencias
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.gold.fact_ocorrencias` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Silver |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Gold |
-# MAGIC
 # MAGIC Granularidade: 1 linha por ticket de atendimento.
 # MAGIC Conecta a `fact_pedidos` via `order_key` e a `dim_tempo` via `created_date_key`.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Padronização: dsRefChave, InRegistroAtivo, process_data_load/MERGE. |
 
 # COMMAND ----------
 
@@ -41,49 +26,35 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 # COMMAND ----------
 
-so    = spark.table(f'{var_environment}.{var_silver_schema}.atendimento_ocorrencias')
-f_ped = spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos') \
-             .select('order_key', col('order_id'))
-d_tmp = spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo') \
-             .filter(col('InRegistroAtivo') == 1).select('date_key', col('date'))
+spark.table(f'{var_environment}.{var_silver_schema}.atendimento_ocorrencias').createOrReplaceTempView('v_so')
+spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos').createOrReplaceTempView('v_fp')
+spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo').createOrReplaceTempView('v_tmp')
 
-w = Window.orderBy(so["ticket_id"])
+fact = spark.sql("""
+    SELECT
+        row_number() OVER (ORDER BY so.ticket_id) AS ticket_key,
+        fp.order_key,
+        t.date_key                                AS created_date_key,
+        so.ticket_id,
+        so.order_id,
+        so.event_type,
+        so.severity,
+        so.status,
+        so.has_event_type,
+        so.has_severity,
+        so.created_at,
+        so.updated_at,
+        concat('>>', coalesce(so.ticket_id, 'NULL')) AS dsRefChave,
+        current_timestamp()                       AS data_processamento
+    FROM v_so so
+    LEFT JOIN v_fp  fp ON so.order_id                 = fp.order_id
+    LEFT JOIN v_tmp t  ON cast(so.created_at AS date) = t.date AND t.InRegistroAtivo = 1
+""")
 
-fact = (
-    so
-    .join(f_ped, so["order_id"] == f_ped["order_id"],               "left")
-    .join(d_tmp, so["created_at"].cast("date") == d_tmp["date"],    "left")
-    .withColumn("ticket_key", row_number().over(w))
-    .select(
-        col("ticket_key"),
-        col("order_key"),
-        col("date_key").alias("created_date_key"),
-        so["ticket_id"],
-        so["order_id"],
-        col("event_type"),
-        col("severity"),
-        so["status"],
-        col("has_event_type"),
-        col("has_severity"),
-        col("created_at"),
-        col("updated_at"),
-    )
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(so["ticket_id"], lit('NULL'))))
-    .withColumn("data_processamento", current_timestamp())
-)
-
-print(f"fact_ocorrencias  : {fact.count():,} linhas")
-print(f"Sem order_key     : {fact.filter(col('order_key').isNull()).count():,}")
 
 # COMMAND ----------
 
-table_exists = spark.sql(f"""
-    SELECT COUNT(*) FROM system.information_schema.tables
-    WHERE table_catalog = '{nome_catalogo}'
-      AND table_schema  = '{var_gold_schema}'
-      AND table_name    = '{nome_tabela}'
-""").collect()[0][0] > 0
+table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
 
 fact.createOrReplaceTempView('df_incremental')
 
@@ -98,7 +69,7 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
+    ''')
 
 drop_v2checkpoint_feature(nome_gravacao_tabela)
 

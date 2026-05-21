@@ -2,22 +2,7 @@
 # MAGIC %md
 # MAGIC # Entidade BronzeComercialCanais
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.comercial_canais` |
-# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing (XLSX) |
-# MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
-# MAGIC
 # MAGIC > **Nota:** Arquivos `.xlsx` não têm suporte pelo AutoLoader. Utiliza `openpyxl` para leitura direta + `spark.createDataFrame()` — sem dependência de pandas.
-# MAGIC
-# MAGIC ## Histórico
-# MAGIC
-# MAGIC | Data       | Desenvolvido Por | Motivo |
-# MAGIC |:----------:|------------------|--------|
-# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização com dsRefChave e process_data/MERGE. |
 
 # COMMAND ----------
 

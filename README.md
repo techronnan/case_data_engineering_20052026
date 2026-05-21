@@ -241,15 +241,16 @@ Responsabilidade: modelo dimensional — surrogate keys, joins resolvidos, métr
 
 | Padrão | Detalhe |
 |--------|---------|
-| Fonte | Silver via `spark.table()` |
-| Surrogate key | `monotonically_increasing_id()` ou `row_number()` sobre Window com `ORDER BY chave_natural` |
+| Fonte | Silver via `spark.table().createOrReplaceTempView()` + `spark.sql()` |
+| Transformação | SparkSQL — toda lógica de SELECT/JOIN/FILTER em `spark.sql("""...""")` |
+| Surrogate key | `row_number() OVER (ORDER BY chave_natural)` dentro do SparkSQL |
 | Nomenclatura das PKs | `{entidade}_key` — ex: `customer_key`, `product_key` |
 | FKs nas fatos | Nome idêntico à PK da dimensão correspondente |
 | Tabelas de dimensão | Prefixo `dim_` — carga `full` |
 | Tabelas de fato | Prefixo `fact_` — carga `delta` (MERGE INTO) |
-| `InRegistroAtivo` | Presente em todas as dimensões (booleano) |
-| Métricas pré-calculadas | Apenas nas fatos — ex: `total_pedido`, `dias_para_entrega` |
+| `InRegistroAtivo` | Presente em todas as dimensões (literal `1` no SQL) |
 | Estratégia de carga | `full` para dimensões; `delta` para fatos |
+| Existência da tabela | `spark.catalog.tableExists()` — sem query em `system.information_schema` |
 
 Variáveis locais obrigatórias em cada notebook Gold:
 
@@ -270,13 +271,12 @@ caminho_gravacao_tabela = f'/delta/{var_gold_schema}/{nome_tabela}'
 ### Estrutura de todo notebook do pipeline
 
 ```
-1. Cabeçalho Markdown — tabela Visão Geral + Histórico
+1. Cabeçalho Markdown — título da entidade + descrição da granularidade/tratamentos
 2. %run ../0_config/0-Init
 3. Declaração de variáveis locais (nome_tabela, tipo_carga, chaves, paths)
-4. Leitura da fonte
-5. Transformações
-6. Gravação via process_data_load() ou MERGE INTO
-7. log_table_execution() — sempre ao final
+4. Transformação (temp view → spark.sql() ou AutoLoader stream)
+5. Gravação via process_data_load() ou MERGE INTO
+6. log_table_execution() — sempre ao final
 ```
 
 ### Convenções de nomenclatura
@@ -428,3 +428,31 @@ Na primeira execução a task `setup` cria automaticamente o catálogo, os schem
 | openpyxl sem pandas | Compatibilidade serverless — evita dependência pesada para 2 arquivos XLSX |
 | Spark Connect (serverless) | Sem `.rdd`, sem `sparkContext` — API DataFrame e SQL apenas |
 | Checkpoints no UC Volume | `/Volumes/{catalog}/landing/storage_files/_checkpoints/` persiste entre tasks serverless |
+| SparkSQL nas camadas Silver/Gold | Legibilidade — SQL é mais declarativo que chains PySpark para JOINs e SELECTs |
+| `spark.catalog.tableExists()` | API Unity Catalog nativa — sem queries em `system.information_schema` |
+
+---
+
+## Limitações
+
+| Limitação | Descrição |
+|-----------|-----------|
+| Surrogate keys não-estáveis | `row_number() OVER (ORDER BY chave_natural)` é determinístico mas recalculado a cada carga `full` — não são sequenciais incrementais |
+| XLSX sem AutoLoader | Arquivos `crm_clientes` e `comercial_canais` são lidos em `full` com `openpyxl` — sem rastreamento de novos arquivos incrementais |
+| dim_tempo hard-coded | Cobertura 2024–2027 — se dados ultrapassarem esse range, a tabela precisa de reprocessamento |
+| ~5% pedidos sem `order_date` | Pedidos com `order_date` nula não resolvem `order_date_key` na `fact_pedidos` (FK NULL) |
+| Sem SCD | Dimensões sem SCD Tipo 2 — alterações nos cadastros sobrescrevem o histórico |
+| Sem testes automatizados | Validações são feitas durante a transformação; não há suite de testes de qualidade |
+
+---
+
+## Sugestões de Evolução
+
+| Evolução | Impacto |
+|----------|---------|
+| SCD Tipo 2 em `dim_clientes` e `dim_vendedores` | Preserva histórico de alterações cadastrais para análises temporais precisas |
+| Spark Declarative Pipelines (ex-DLT) | Substitui o fluxo manual de MERGE por pipelines declarativas com expectativas de qualidade nativas |
+| Camada `gold_agg` | Tabelas agregadas pré-calculadas (receita por mês/canal/região) — reduz latência para dashboards |
+| Alertas automáticos | Extensão do `pipeline_controller` com alertas Slack/email via `system.lakeflow` ou webhook |
+| Testes de qualidade (Great Expectations / Databricks DQ) | Regras formalizadas de completude, unicidade e integridade referencial |
+| Catálogo de dados | Unity Catalog `COMMENT ON TABLE/COLUMN` para autodocumentação das tabelas Gold |
