@@ -10,8 +10,14 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Funções utilitárias: parse, normalização, estratégias de carga, certificação |
-# MAGIC | Executado Via | `4-Config` — não executar diretamente |
+# MAGIC | Finalidade | Funções utilitárias: parse, normalização, ingestão, carga e certificação |
+# MAGIC | Executado Via | `0-Init` — não executar diretamente |
+# MAGIC
+# MAGIC ## Histórico
+# MAGIC
+# MAGIC | Data       | Desenvolvido Por | Motivo |
+# MAGIC |:----------:|------------------|--------|
+# MAGIC | 20/05/2026 | Ronnan           | Renomeação de todas as funções para padrão 3 palavras snake_case. |
 
 # COMMAND ----------
 
@@ -20,7 +26,7 @@
 
 # COMMAND ----------
 
-def parse_date_multi(col_name: str):
+def parse_date_multi_format(col_name: str):
     """Normaliza datas em múltiplos formatos para DateType."""
     return coalesce(
         to_date(col(col_name), "yyyy-MM-dd"),
@@ -30,7 +36,7 @@ def parse_date_multi(col_name: str):
     )
 
 
-def parse_timestamp_multi(col_name: str):
+def parse_timestamp_multi_format(col_name: str):
     """Normaliza timestamps em múltiplos formatos."""
     return coalesce(
         to_timestamp(col(col_name), "yyyy-MM-dd'T'HH:mm:ss"),
@@ -47,7 +53,7 @@ def parse_timestamp_multi(col_name: str):
 
 # COMMAND ----------
 
-def normalize_decimal(col_name: str):
+def normalize_decimal_value(col_name: str):
     """Converte número com vírgula decimal (BR) para DoubleType."""
     return regexp_replace(col(col_name), ",", ".").cast(DoubleType())
 
@@ -71,7 +77,7 @@ UF_MAP = {
 }
 
 
-def normalize_uf(df: DataFrame, col_name: str) -> DataFrame:
+def normalize_uf_column(df: DataFrame, col_name: str) -> DataFrame:
     """Normaliza coluna de estado: nome por extenso → sigla UF."""
     from pyspark.sql.functions import create_map
     from itertools import chain
@@ -128,21 +134,8 @@ def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
 
 # COMMAND ----------
 
-def write_full(df: DataFrame, table: str, overwrite_schema: bool = True) -> int:
-    """
-    Estratégia FULL LOAD — substitui toda a tabela.
-
-    Uso recomendado:
-    - Bronze: sempre (ingere bruto completo)
-    - Gold Dimensões: sempre (rebuild completo a partir do Silver)
-    - Gold Fatos pequenos: opcional
-
-    Parâmetros
-    ----------
-    df              : DataFrame a gravar
-    table           : nome 3-part Unity Catalog (catalog.schema.table)
-    overwrite_schema: permite alterar schema na sobrescrita (padrão True)
-    """
+def write_full_table(df: DataFrame, table: str, overwrite_schema: bool = True) -> int:
+    """Estratégia FULL LOAD — substitui toda a tabela (overwrite)."""
     (df.write
        .format("delta")
        .mode("overwrite")
@@ -155,31 +148,14 @@ def write_full(df: DataFrame, table: str, overwrite_schema: bool = True) -> int:
 
 def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
                       temp_view: str = "_src_updates") -> int:
-    """
-    Estratégia DELTA — MERGE INTO (upsert) por chave(s) primária(s).
-
-    Uso recomendado:
-    - Silver: incremental sobre dados já existentes
-    - Gold Fatos: permite reprocessamento sem duplicar linhas
-
-    Parâmetros
-    ----------
-    df         : DataFrame com registros novos/atualizados
-    table      : nome 3-part Unity Catalog (catalog.schema.table)
-    pk_cols    : lista de colunas que formam a chave de MERGE
-    temp_view  : nome da view temporária usada no SQL de MERGE
-    """
+    """Estratégia DELTA — MERGE INTO (upsert) por chave(s) primária(s)."""
     df.createOrReplaceTempView(temp_view)
-
-    # Cria tabela vazia se não existir (preserva schema em runs subsequentes)
     spark.sql(f"""
         CREATE TABLE IF NOT EXISTS {table}
         USING DELTA
         AS SELECT * FROM {temp_view} WHERE 1 = 0
     """)
-
     on_clause = " AND ".join([f"tgt.`{c}` = src.`{c}`" for c in pk_cols])
-
     result = spark.sql(f"""
         MERGE INTO {table} AS tgt
         USING {temp_view}  AS src
@@ -187,10 +163,13 @@ def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
         WHEN MATCHED     THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     """)
-
     count = spark.table(table).count()
     print(f"  [DELTA] {table} → {count:,} linhas totais | MERGE por {pk_cols}")
     return count
+
+
+# Alias retrocompatível
+write_delta = write_full_table
 
 # COMMAND ----------
 
@@ -199,15 +178,8 @@ def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
 
 # COMMAND ----------
 
-def certify(table: str, pk_cols: list, min_rows: int = 1) -> int:
-    """
-    Certifica qualidade básica após a carga:
-    - Contagem mínima de linhas
-    - PKs sem nulos
-    - Ausência de duplicatas por PK
-
-    Lança AssertionError se alguma verificação falhar.
-    """
+def certify_table_quality(table: str, pk_cols: list, min_rows: int = 1) -> int:
+    """Certifica qualidade básica após carga: contagem mínima, PKs sem nulos, sem duplicatas."""
     df    = spark.table(table)
     total = df.count()
     errors = []
@@ -236,9 +208,92 @@ def certify(table: str, pk_cols: list, min_rows: int = 1) -> int:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Funções de Contexto Bronze (AutoLoader)
+
+# COMMAND ----------
+
+def initialize_bronze_context(container_source: str, nome_arquivo: str, file_name_saida: str):
+    """Inicializa paths e parâmetros de configuração para notebooks Bronze com AutoLoader."""
+    caminho_leitura  = f"{SOURCES_PATH}/{container_source}/"
+    caminho_gravacao = f"/delta/{BRONZE_SCHEMA}/{file_name_saida}"
+    schemalocal      = f"/tmp/cloudfiles_schema/{container_source}/{file_name_saida}"
+    checkpoint       = f"/tmp/checkpoints/{BRONZE_SCHEMA}/{container_source}/{file_name_saida}"
+    nome_tabela      = f"{BRONZE}.{file_name_saida}"
+    table_id         = file_name_saida.replace("-", "_").replace(".", "_")
+    merge_condition  = "target.dsRefChave = source.dsRefChave"
+    var_renomear     = []
+    var_merge        = {"key": "dsRefChave"}
+    print(f"[initialize_bronze_context] Leitura  : {caminho_leitura}")
+    print(f"[initialize_bronze_context] Gravação : {caminho_gravacao}")
+    print(f"[initialize_bronze_context] Tabela   : {nome_tabela}")
+    return var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela
+
+
+def upsert_delta_live(nome_tabela, caminho_gravacao, merge_condition, table_id, order_key='rastreamento_source'):
+    """Retorna função foreachBatch para upsert idempotente em tabela Delta via streaming."""
+    import pyspark.sql.functions as _F
+    from pyspark.sql import Window as _W
+
+    def inner(batch_df, batch_id):
+        if batch_df.rdd.isEmpty():
+            return
+        w = _W.partitionBy("dsRefChave").orderBy(_F.col(order_key).desc())
+        deduped = (batch_df
+                   .withColumn("_row_rank", _F.row_number().over(w))
+                   .filter(_F.col("_row_rank") == 1)
+                   .drop("_row_rank"))
+        view_name = f"_batch_{table_id}"
+        deduped.createOrReplaceTempView(view_name)
+        spark.sql(f"""
+            CREATE TABLE IF NOT EXISTS {nome_tabela}
+            USING DELTA
+            LOCATION '{caminho_gravacao}'
+            AS SELECT * FROM {view_name} WHERE 1=0
+        """)
+        spark.sql(f"""
+            MERGE INTO {nome_tabela} AS target
+            USING {view_name} AS source
+            ON {merge_condition}
+            WHEN MATCHED THEN UPDATE SET *
+            WHEN NOT MATCHED THEN INSERT *
+        """)
+
+    return inner
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Funções de Carga Silver / Gold
+
+# COMMAND ----------
+
+def process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert):
+    """Carga completa (overwrite) usada na primeira execução ou quando tipo_carga='full'."""
+    (df.write
+       .format("delta")
+       .mode("overwrite")
+       .option("overwriteSchema", "true")
+       .saveAsTable(nome_gravacao_tabela))
+    count = spark.table(nome_gravacao_tabela).count()
+    print(f"  [FULL LOAD] {nome_gravacao_tabela} → {count:,} linhas gravadas")
+    return count
+
+
+def drop_v2checkpoint_feature(table_name: str):
+    """Remove v2Checkpoint feature da tabela Delta se existir (compatibilidade entre runtimes)."""
+    try:
+        spark.sql(f"ALTER TABLE {table_name} DROP FEATURE v2Checkpoint IF EXISTS")
+    except Exception:
+        pass
+
+# COMMAND ----------
+
 print("[Functions] Carregadas:")
-print("  parse_date_multi, parse_timestamp_multi")
-print("  normalize_decimal, normalize_uf, normalize_status_pedido")
+print("  parse_date_multi_format, parse_timestamp_multi_format")
+print("  normalize_decimal_value, normalize_uf_column, normalize_status_pedido")
 print("  add_ingestion_metadata")
-print("  write_full, write_delta_merge")
-print("  certify")
+print("  write_full_table, write_delta_merge, write_delta (alias)")
+print("  certify_table_quality")
+print("  initialize_bronze_context, upsert_delta_live")
+print("  process_data_load, drop_v2checkpoint_feature")

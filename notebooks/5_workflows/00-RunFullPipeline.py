@@ -10,12 +10,17 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Orquestrar execução completa: Bronze → Silver → Gold |
-# MAGIC | Dependência | Arquivos de fonte já presentes em DBFS (executar `1_landing/00-LandingUploadSources` antes) |
+# MAGIC | Finalidade | Execução sequencial completa para dev/teste: Bronze → Silver → Gold |
+# MAGIC | Uso em Produção | **Usar o Job `pipeline_medallion_completo` definido em `databricks.yml`** |
+# MAGIC | Pré-requisito | Executar `1_landing/00-LandingUploadSources` antes |
+# MAGIC
+# MAGIC > **Nota:** Este notebook executa tudo em sequência num único cluster.
+# MAGIC > Em produção, o Job no `databricks.yml` paraleliza Bronze e Silver,
+# MAGIC > reduzindo o tempo total de execução.
 
 # COMMAND ----------
 
-# MAGIC %run ../0_config/4-Config
+# MAGIC %run ../0_config/0-Init
 
 # COMMAND ----------
 
@@ -102,7 +107,7 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Gold — Modelagem Dimensional (Dimensões primeiro, depois Fatos)
+# MAGIC ## Gold — Modelagem Dimensional (Dimensões antes dos Fatos)
 
 # COMMAND ----------
 

@@ -43,6 +43,15 @@ CREATED_BY       = "ronnan_ok@hotmail.com"
 STRATEGY_FULL  = "FULL"   # Bronze + Gold Dims
 STRATEGY_DELTA = "DELTA"  # Silver + Gold Facts
 
+# Aliases padrão var_environment (compatibilidade com notebooks de referência)
+var_environment   = CATALOG
+var_bronze_schema = BRONZE_SCHEMA
+var_silver_schema = SILVER_SCHEMA
+var_gold_schema   = GOLD_SCHEMA
+var_bronze        = BRONZE
+var_silver        = SILVER
+var_gold          = GOLD
+
 print(f"[Variables] Catalog  : {CATALOG}")
 print(f"[Variables] Bronze   : {BRONZE}")
 print(f"[Variables] Silver   : {SILVER}")

@@ -3,36 +3,14 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # 4-Config
+# MAGIC # 4-Config — Compatibilidade Retroativa
 # MAGIC
-# MAGIC ## Visão Geral
-# MAGIC
-# MAGIC | Detalhe | Informação |
-# MAGIC |---------|------------|
-# MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Notebook master de configuração — carrega Init, Libs, Variables e Functions |
-# MAGIC | Como Usar | Adicionar `%run ../0_config/4-Config` no início de cada notebook do pipeline |
+# MAGIC Este notebook existe apenas para retrocompatibilidade.
+# MAGIC O entry point canônico é `0-Init`. Novos notebooks devem chamar:
+# MAGIC ```
+# MAGIC %run ../0_config/0-Init
+# MAGIC ```
 
 # COMMAND ----------
 
 # MAGIC %run ./0-Init
-
-# COMMAND ----------
-
-# MAGIC %run ./1-Libs
-
-# COMMAND ----------
-
-# MAGIC %run ./2-Variables
-
-# COMMAND ----------
-
-# MAGIC %run ./3-Functions
-
-# COMMAND ----------
-
-print("=" * 55)
-print(f"  Config carregado | Pipeline: {PIPELINE_NAME} v{PIPELINE_VERSION}")
-print(f"  Catalog : {CATALOG}")
-print(f"  Bronze  : {BRONZE}  |  Silver: {SILVER}  |  Gold: {GOLD}")
-print("=" * 55)

@@ -10,44 +10,77 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `workspace.bronze.erp_pedidos_itens` |
-# MAGIC | Origem Fonte de Dados de Entrada | `sources/erp_pedidos_itens_2025.csv` |
+# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.erp_pedidos_itens` |
+# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing |
 # MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
+# MAGIC
+# MAGIC ## Histórico
+# MAGIC
+# MAGIC | Data       | Desenvolvido Por | Motivo |
+# MAGIC |:----------:|------------------|--------|
+# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
 
 # COMMAND ----------
 
-# MAGIC %run ../0_config/4-Config
+# MAGIC %run ../0_config/0-Init
 
 # COMMAND ----------
 
-SOURCE_FILE  = f"{SOURCES_PATH}/erp_pedidos_itens_2025.csv"
-TARGET_TABLE = f"{BRONZE}.erp_pedidos_itens"
+container_source = 'erp'
+nome_arquivo     = 'erp_pedidos_itens'
+file_name_saida  = 'erp_pedidos_itens'
 
 # COMMAND ----------
 
-df = (
-    spark.read
-    .option("header", "true")
-    .option("sep", ",")
-    .option("inferSchema", "false")
-    .option("encoding", "UTF-8")
-    .csv(SOURCE_FILE)
+var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela = initialize_bronze_context(
+    container_source=container_source,
+    nome_arquivo=nome_arquivo,
+    file_name_saida=file_name_saida,
 )
 
-df = add_ingestion_metadata(df, SOURCE_FILE)
+# COMMAND ----------
 
-print(f"Linhas lidas : {df.count():,}")
-df.printSchema()
+dfReadStream = (
+    spark.readStream.format('cloudFiles')
+    .option('cloudFiles.format', 'csv')
+    .option('header', 'true')
+    .option('sep', ',')
+    .option('encoding', 'UTF-8')
+    .option('cloudFiles.inferColumnTypes', 'true')
+    .option('cloudFiles.schemaLocation', schemalocal)
+    .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
+    .load(caminho_leitura)
+    .withColumn('rastreamento_source', col('_metadata.file_path'))
+)
+
+for row in var_renomear:
+    dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
+
+dfReadStream = dfReadStream.withColumn(
+    'dsRefChave',
+    concat(
+        lit('>>'), coalesce(col('order_id'), lit('NULL')),
+        lit('>>'), coalesce(col('item_seq').cast('string'), lit('NULL')),
+    )
+)
 
 # COMMAND ----------
 
-write_delta(df, TARGET_TABLE)
+streamQuery = (
+    dfReadStream.writeStream
+    .format('delta')
+    .outputMode('append')
+    .foreachBatch(upsert_delta_live(
+        nome_tabela=nome_tabela,
+        caminho_gravacao=caminho_gravacao,
+        merge_condition=merge_condition,
+        table_id=table_id,
+        order_key='rastreamento_source',
+    ))
+    .queryName(nome_tabela)
+    .trigger(availableNow=True)
+    .option('checkpointLocation', checkpoint)
+    .start()
+)
 
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT
-# MAGIC   COUNT(*)               AS total_itens,
-# MAGIC   COUNT(DISTINCT order_id) AS pedidos_distintos,
-# MAGIC   MAX(_ingested_at)      AS ultima_ingestao
-# MAGIC FROM workspace.bronze.erp_pedidos_itens
+streamQuery.awaitTermination()

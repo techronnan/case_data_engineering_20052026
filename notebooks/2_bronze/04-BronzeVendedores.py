@@ -10,41 +10,74 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `workspace.bronze.vendedores` |
-# MAGIC | Origem Fonte de Dados de Entrada | `sources/vendedores.csv` |
+# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.vendedores` |
+# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing |
 # MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
+# MAGIC
+# MAGIC ## Histórico
+# MAGIC
+# MAGIC | Data       | Desenvolvido Por | Motivo |
+# MAGIC |:----------:|------------------|--------|
+# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
 
 # COMMAND ----------
 
-# MAGIC %run ../0_config/4-Config
+# MAGIC %run ../0_config/0-Init
 
 # COMMAND ----------
 
-SOURCE_FILE  = f"{SOURCES_PATH}/vendedores.csv"
-TARGET_TABLE = f"{BRONZE}.vendedores"
+container_source = 'vendedores'
+nome_arquivo     = 'vendedores'
+file_name_saida  = 'vendedores'
 
 # COMMAND ----------
 
-df = (
-    spark.read
-    .option("header", "true")
-    .option("sep", ";")
-    .option("inferSchema", "false")
-    .option("encoding", "UTF-8")
-    .csv(SOURCE_FILE)
+var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela = initialize_bronze_context(
+    container_source=container_source,
+    nome_arquivo=nome_arquivo,
+    file_name_saida=file_name_saida,
 )
 
-df = add_ingestion_metadata(df, SOURCE_FILE)
+# COMMAND ----------
 
-print(f"Linhas lidas : {df.count():,}")
-df.printSchema()
+dfReadStream = (
+    spark.readStream.format('cloudFiles')
+    .option('cloudFiles.format', 'csv')
+    .option('header', 'true')
+    .option('sep', ';')
+    .option('encoding', 'UTF-8')
+    .option('cloudFiles.inferColumnTypes', 'true')
+    .option('cloudFiles.schemaLocation', schemalocal)
+    .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
+    .load(caminho_leitura)
+    .withColumn('rastreamento_source', col('_metadata.file_path'))
+)
+
+for row in var_renomear:
+    dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
+
+dfReadStream = dfReadStream.withColumn(
+    'dsRefChave',
+    concat(lit('>>'), coalesce(col('seller_id'), lit('NULL')))
+)
 
 # COMMAND ----------
 
-write_delta(df, TARGET_TABLE)
+streamQuery = (
+    dfReadStream.writeStream
+    .format('delta')
+    .outputMode('append')
+    .foreachBatch(upsert_delta_live(
+        nome_tabela=nome_tabela,
+        caminho_gravacao=caminho_gravacao,
+        merge_condition=merge_condition,
+        table_id=table_id,
+        order_key='rastreamento_source',
+    ))
+    .queryName(nome_tabela)
+    .trigger(availableNow=True)
+    .option('checkpointLocation', checkpoint)
+    .start()
+)
 
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT COUNT(*) AS total, COUNT(DISTINCT seller_id) AS vendedores_distintos
-# MAGIC FROM workspace.bronze.vendedores
+streamQuery.awaitTermination()

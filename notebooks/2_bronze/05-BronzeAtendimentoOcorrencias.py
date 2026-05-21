@@ -10,39 +10,73 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `workspace.bronze.atendimento_ocorrencias` |
-# MAGIC | Origem Fonte de Dados de Entrada | `sources/atendimento_ocorrencias.ndjson` (NDJSON) |
+# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.atendimento_ocorrencias` |
+# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing (NDJSON) |
 # MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
+# MAGIC
+# MAGIC ## Histórico
+# MAGIC
+# MAGIC | Data       | Desenvolvido Por | Motivo |
+# MAGIC |:----------:|------------------|--------|
+# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
 
 # COMMAND ----------
 
-# MAGIC %run ../0_config/4-Config
+# MAGIC %run ../0_config/0-Init
 
 # COMMAND ----------
 
-SOURCE_FILE  = f"{SOURCES_PATH}/atendimento_ocorrencias.ndjson"
-TARGET_TABLE = f"{BRONZE}.atendimento_ocorrencias"
+container_source = 'atendimento'
+nome_arquivo     = 'atendimento_ocorrencias'
+file_name_saida  = 'atendimento_ocorrencias'
 
 # COMMAND ----------
 
-# NDJSON = JSON Lines: cada linha é um objeto JSON independente (multiLine=False)
-df = (
-    spark.read
-    .option("multiLine", "false")
-    .json(SOURCE_FILE)
+var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela = initialize_bronze_context(
+    container_source=container_source,
+    nome_arquivo=nome_arquivo,
+    file_name_saida=file_name_saida,
 )
 
-df = add_ingestion_metadata(df, SOURCE_FILE)
+# COMMAND ----------
 
-print(f"Linhas lidas : {df.count():,}")
-df.printSchema()
+# NDJSON = JSON Lines (uma linha por registro), multiLine=false é o padrão do AutoLoader
+dfReadStream = (
+    spark.readStream.format('cloudFiles')
+    .option('cloudFiles.format', 'json')
+    .option('multiLine', 'false')
+    .option('cloudFiles.inferColumnTypes', 'true')
+    .option('cloudFiles.schemaLocation', schemalocal)
+    .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
+    .load(caminho_leitura)
+    .withColumn('rastreamento_source', col('_metadata.file_path'))
+)
+
+for row in var_renomear:
+    dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
+
+dfReadStream = dfReadStream.withColumn(
+    'dsRefChave',
+    concat(lit('>>'), coalesce(col('ticket_id'), lit('NULL')))
+)
 
 # COMMAND ----------
 
-write_delta(df, TARGET_TABLE)
+streamQuery = (
+    dfReadStream.writeStream
+    .format('delta')
+    .outputMode('append')
+    .foreachBatch(upsert_delta_live(
+        nome_tabela=nome_tabela,
+        caminho_gravacao=caminho_gravacao,
+        merge_condition=merge_condition,
+        table_id=table_id,
+        order_key='rastreamento_source',
+    ))
+    .queryName(nome_tabela)
+    .trigger(availableNow=True)
+    .option('checkpointLocation', checkpoint)
+    .start()
+)
 
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT COUNT(*) AS total, COUNT(DISTINCT ticket_id) AS tickets_distintos
-# MAGIC FROM workspace.bronze.atendimento_ocorrencias
+streamQuery.awaitTermination()

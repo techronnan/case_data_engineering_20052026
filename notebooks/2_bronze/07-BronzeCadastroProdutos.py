@@ -10,39 +10,74 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Tabela de Dados de Saída | `workspace.bronze.cadastro_produtos` |
-# MAGIC | Origem Fonte de Dados de Entrada | `sources/cadastro_produtos_api_dump.json` (JSON Array aninhado) |
+# MAGIC | Tabela de Dados de Saída | `{environment}.bronze.cadastro_produtos` |
+# MAGIC | Origem Fonte de Dados de Entrada | Camada Landing (JSON Array aninhado) |
 # MAGIC | Destino Fonte de Dados de Saída | Camada Bronze |
+# MAGIC
+# MAGIC ## Histórico
+# MAGIC
+# MAGIC | Data       | Desenvolvido Por | Motivo |
+# MAGIC |:----------:|------------------|--------|
+# MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
 
 # COMMAND ----------
 
-# MAGIC %run ../0_config/4-Config
+# MAGIC %run ../0_config/0-Init
 
 # COMMAND ----------
 
-SOURCE_FILE  = f"{SOURCES_PATH}/cadastro_produtos_api_dump.json"
-TARGET_TABLE = f"{BRONZE}.cadastro_produtos"
+container_source = 'produtos'
+nome_arquivo     = 'cadastro_produtos'
+file_name_saida  = 'cadastro_produtos'
 
 # COMMAND ----------
 
-df = (
-    spark.read
-    .option("multiLine", "true")
-    .json(SOURCE_FILE)
+var_renomear, var_merge, table_id, merge_condition, caminho_leitura, caminho_gravacao, schemalocal, checkpoint, nome_tabela = initialize_bronze_context(
+    container_source=container_source,
+    nome_arquivo=nome_arquivo,
+    file_name_saida=file_name_saida,
 )
 
-df = add_ingestion_metadata(df, SOURCE_FILE)
+# COMMAND ----------
 
-print(f"Linhas lidas : {df.count():,}")
-print("Schema (produto, pricing, attributes aninhados):")
-df.printSchema()
+# JSON Array com structs aninhados (product, pricing, attributes)
+dfReadStream = (
+    spark.readStream.format('cloudFiles')
+    .option('cloudFiles.format', 'json')
+    .option('multiLine', 'true')
+    .option('cloudFiles.inferColumnTypes', 'true')
+    .option('cloudFiles.schemaLocation', schemalocal)
+    .option('cloudFiles.schemaEvolutionMode', 'addNewColumns')
+    .load(caminho_leitura)
+    .withColumn('rastreamento_source', col('_metadata.file_path'))
+)
+
+for row in var_renomear:
+    dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
+
+# product_id está aninhado em product.product_id
+dfReadStream = dfReadStream.withColumn(
+    'dsRefChave',
+    concat(lit('>>'), coalesce(col('product.product_id'), lit('NULL')))
+)
 
 # COMMAND ----------
 
-write_delta(df, TARGET_TABLE)
+streamQuery = (
+    dfReadStream.writeStream
+    .format('delta')
+    .outputMode('append')
+    .foreachBatch(upsert_delta_live(
+        nome_tabela=nome_tabela,
+        caminho_gravacao=caminho_gravacao,
+        merge_condition=merge_condition,
+        table_id=table_id,
+        order_key='rastreamento_source',
+    ))
+    .queryName(nome_tabela)
+    .trigger(availableNow=True)
+    .option('checkpointLocation', checkpoint)
+    .start()
+)
 
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC SELECT COUNT(*) AS total
-# MAGIC FROM workspace.bronze.cadastro_produtos
+streamQuery.awaitTermination()
