@@ -27,17 +27,10 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Como Fazer o Upload das Fontes
+# MAGIC ## Origem das Fontes
 # MAGIC
-# MAGIC **Opção 1 — Via CLI (recomendado):**
-# MAGIC ```bash
-# MAGIC databricks fs mkdirs dbfs:/FileStore/case/sources
-# MAGIC databricks fs cp sources/ dbfs:/FileStore/case/sources/ --recursive --profile AZDO
-# MAGIC ```
-# MAGIC
-# MAGIC **Opção 2 — Via UI do Databricks:**
-# MAGIC 1. Menu lateral → **Catalog** → aba **Browse** → **DBFS** → `/FileStore/case/sources/`
-# MAGIC 2. Botão **Upload** → selecionar todos os arquivos da pasta `sources/`
+# MAGIC Os arquivos raw são lidos diretamente do Workspace Repos, na pasta `sources/` do próprio repositório.
+# MAGIC Nenhum upload manual é necessário — o caminho é resolvido automaticamente via `current_user()`.
 
 # COMMAND ----------
 
@@ -191,7 +184,15 @@ for sistema, config in SOURCE_MAP.items():
         elif fmt == "json":
             df = spark.read.format("json").options(**opts).load(src_path)
         elif fmt == "excel":
-            df = spark.read.format("com.crealytics.spark.excel").options(**opts).load(src_path)
+            wb = openpyxl.load_workbook(src_path, read_only=True, data_only=True)
+            ws = wb.active
+            headers = [cell.value for cell in next(ws.iter_rows(max_row=1))]
+            rows = [
+                {headers[i]: cell for i, cell in enumerate(row)}
+                for row in ws.iter_rows(min_row=2, values_only=True)
+            ]
+            wb.close()
+            df = spark.createDataFrame(rows)
         else:
             raise ValueError(f"Formato desconhecido: {fmt}")
 
