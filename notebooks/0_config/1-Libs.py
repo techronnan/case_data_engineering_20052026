@@ -11,7 +11,7 @@
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
 # MAGIC | Finalidade | Importação centralizada de bibliotecas |
-# MAGIC | Executado Via | `4-Config` — não executar diretamente |
+# MAGIC | Executado Via | `0-Init` — não executar diretamente |
 
 # COMMAND ----------
 

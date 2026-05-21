@@ -19,6 +19,7 @@
 # MAGIC | Data       | Desenvolvido Por | Motivo |
 # MAGIC |:----------:|------------------|--------|
 # MAGIC | 20/05/2026 | Ronnan           | Criação do notebook e padronização para AutoLoader com upsert por dsRefChave. |
+# MAGIC | 21/05/2026 | Ronnan           | Monitoramento: log_table_execution registrado após awaitTermination. |
 
 # COMMAND ----------
 
@@ -100,4 +101,13 @@ streamQuery = (
     .start()
 )
 
-streamQuery.awaitTermination()
+import time as _time
+_t0 = _time.time()
+
+try:
+    streamQuery.awaitTermination()
+    _n_rows = spark.table(nome_tabela).count()
+    log_table_execution(nome_tabela, round(_time.time() - _t0, 2), 'SUCESSO', _n_rows)
+except Exception as _monitor_e:
+    log_table_execution(nome_tabela, round(_time.time() - _t0, 2), 'FALHA', 0, str(_monitor_e))
+    raise

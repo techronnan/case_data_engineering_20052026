@@ -10,7 +10,7 @@
 # MAGIC | Detalhe | Informação |
 # MAGIC |---------|------------|
 # MAGIC | Criado Originalmente Por | Ronnan |
-# MAGIC | Finalidade | Entry point único de configuração — carrega Libs, Variables e Functions em sequência |
+# MAGIC | Finalidade | Entry point único de configuração — carrega Libs, Variables, Functions e MonitoringLogs em sequência |
 # MAGIC | Como Usar | `%run ../0_config/0-Init` no início de cada notebook do pipeline |
 # MAGIC
 # MAGIC ## Histórico
@@ -18,6 +18,7 @@
 # MAGIC | Data       | Desenvolvido Por | Motivo |
 # MAGIC |:----------:|------------------|--------|
 # MAGIC | 20/05/2026 | Ronnan           | Reestruturação: 0-Init passa a ser o entry point único substituindo 4-Config. |
+# MAGIC | 21/05/2026 | Ronnan           | Carrega 6-MonitoringLogs (cria pipeline_controller + funções de monitoramento). |
 
 # COMMAND ----------
 
@@ -66,8 +67,14 @@ print(f"[Init] Spark {spark.version} | TZ: America/Sao_Paulo | AdaptiveQuery: ON
 
 # COMMAND ----------
 
-print("=" * 55)
+# MAGIC %run ./6-MonitoringLogs
+
+# COMMAND ----------
+
+print("=" * 60)
 print(f"  Config carregado | Pipeline: {PIPELINE_NAME} v{PIPELINE_VERSION}")
-print(f"  Catalog : {CATALOG}")
-print(f"  Bronze  : {BRONZE}  |  Silver: {SILVER}  |  Gold: {GOLD}")
-print("=" * 55)
+print(f"  Catalog  : {CATALOG}")
+print(f"  Bronze   : {BRONZE}  |  Silver: {SILVER}  |  Gold: {GOLD}")
+print(f"  Monitor  : {CONTROL_TABLE}")
+print(f"  Checkpts : {CHECKPOINT_BASE}")
+print("=" * 60)

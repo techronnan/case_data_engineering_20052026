@@ -89,6 +89,7 @@ resources:
           depends_on: [{task_key: landing}]
           notebook_task:
             notebook_path: ./notebooks/2_bronze/08-BronzeCrmClientes.py
+          environment_key: default
 
         - task_key: bronze_comercial_canais
           depends_on: [{task_key: landing}]
