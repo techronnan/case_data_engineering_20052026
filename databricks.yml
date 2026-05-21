@@ -48,8 +48,16 @@ resources:
           - ronnan_ok@hotmail.com
       tasks:
 
-        # ── 0. Landing ──────────────────────────────────────────────────────
+        # ── 0. Setup — cria catalog/schemas/volume se não existirem ─────────
+        - task_key: setup
+          notebook_task:
+            notebook_path: ./notebooks/0_config/7-SetupCatalog.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        # ── 1. Landing ──────────────────────────────────────────────────────
         - task_key: landing
+          depends_on: [{task_key: setup}]
           notebook_task:
             notebook_path: ./notebooks/1_landing/00-LandingUploadSources.py
 
