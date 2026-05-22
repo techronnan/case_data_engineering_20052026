@@ -34,10 +34,9 @@ dfReadStream = (
 for row in var_renomear:
     dfReadStream = dfReadStream.withColumnRenamed(row['de'], row['para_alias'])
 
-# product_id está aninhado em product.product_id
 dfReadStream = dfReadStream.withColumn(
     'dsRefChave',
-    concat(lit('>>'), coalesce(col('product.product_id'), lit('NULL')))
+    concat(lit('>>'), coalesce(col('product_id'), lit('NULL')))
 )
 
 # COMMAND ----------
