@@ -28,35 +28,24 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = spark.sql("""
+df_raw = spark.sql("""
     SELECT
         upper(trim(ticket_id))   AS ticket_id,
         upper(trim(order_id))    AS order_id,
         upper(trim(status))      AS status,
         upper(trim(severity))    AS severity,
         lower(trim(event_type))  AS event_type,
-        coalesce(
-            to_timestamp(created_at, "yyyy-MM-dd'T'HH:mm:ss"),
-            to_timestamp(created_at, 'yyyy-MM-dd HH:mm:ss'),
-            to_timestamp(created_at, 'dd/MM/yyyy HH:mm'),
-            to_timestamp(created_at, 'yyyy/MM/dd'),
-            cast(to_date(created_at, 'yyyy-MM-dd') as timestamp)
-        )                        AS created_at,
-        coalesce(
-            to_timestamp(updated_at, "yyyy-MM-dd'T'HH:mm:ss"),
-            to_timestamp(updated_at, 'yyyy-MM-dd HH:mm:ss'),
-            to_timestamp(updated_at, 'dd/MM/yyyy HH:mm'),
-            to_timestamp(updated_at, 'yyyy/MM/dd'),
-            cast(to_date(updated_at, 'yyyy-MM-dd') as timestamp)
-        )                        AS updated_at,
-        lower(trim(event_type)) IS NOT NULL                          AS has_event_type,
-        upper(trim(severity))   IS NOT NULL                          AS has_severity,
-        upper(trim(order_id))   IS NOT NULL                          AS has_order_ref,
+        created_at,
+        lower(trim(event_type)) IS NOT NULL AS has_event_type,
+        upper(trim(severity))   IS NOT NULL AS has_severity,
+        upper(trim(order_id))   IS NOT NULL AS has_order_ref,
         rastreamento_source,
-        concat('>>', coalesce(upper(trim(ticket_id)), 'NULL'))        AS dsRefChave,
-        current_timestamp()                                          AS data_processamento
+        concat('>>', coalesce(upper(trim(ticket_id)), 'NULL')) AS dsRefChave,
+        current_timestamp()                                    AS data_processamento
     FROM v_source
 """)
+
+df_silver = df_raw.withColumn("created_at", parse_timestamp_multi_format("created_at"))
 
 print(f"Linhas : {df_silver.count():,}")
 df_silver.groupBy("status").count().show()

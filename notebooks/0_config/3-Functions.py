@@ -1,23 +1,36 @@
 # Databricks notebook source
 def parse_date_multi_format(col_name: str):
-    """Normaliza datas em múltiplos formatos para DateType."""
-    return coalesce(
-        to_date(col(col_name), "yyyy-MM-dd"),
-        to_date(col(col_name), "yyyy/MM/dd"),
-        to_date(col(col_name), "dd/MM/yyyy"),
-        to_date(col(col_name), "MM/dd/yyyy"),
+    """Regex: normaliza qualquer string de data para DateType (yyyy-MM-dd)."""
+    c = col(col_name)
+    normalized = (
+        when(c.rlike(r'^\d{4}[-/]\d{2}[-/]\d{2}'),
+             regexp_replace(c, r'^(\d{4})[-/](\d{2})[-/](\d{2}).*', '$1-$2-$3'))
+        .when(c.rlike(r'^\d{2}/\d{2}/\d{4}'),
+             regexp_replace(c, r'^(\d{2})/(\d{2})/(\d{4}).*', '$3-$2-$1'))
+        .otherwise(lit(None).cast('string'))
     )
+    return to_date(normalized, 'yyyy-MM-dd')
 
 
 def parse_timestamp_multi_format(col_name: str):
-    """Normaliza timestamps em múltiplos formatos."""
-    return coalesce(
-        to_timestamp(col(col_name), "yyyy-MM-dd'T'HH:mm:ss"),
-        to_timestamp(col(col_name), "yyyy-MM-dd HH:mm:ss"),
-        to_timestamp(col(col_name), "dd/MM/yyyy HH:mm"),
-        to_timestamp(col(col_name), "yyyy/MM/dd"),
-        to_date(col(col_name), "yyyy-MM-dd").cast(TimestampType()),
+    """Regex: normaliza qualquer string de data/hora para TimestampType (yyyy-MM-dd HH:mm:ss)."""
+    c = col(col_name)
+    normalized = (
+        when(c.rlike(r'^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}:\d{2}'),
+             regexp_replace(c, r'^(\d{4})[-/](\d{2})[-/](\d{2})[T ](\d{2}:\d{2}:\d{2}).*', '$1-$2-$3 $4'))
+        .when(c.rlike(r'^\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}$'),
+             concat(regexp_replace(c, r'^(\d{4})[-/](\d{2})[-/](\d{2})[T ](\d{2}:\d{2})$', '$1-$2-$3 $4'), lit(':00')))
+        .when(c.rlike(r'^\d{4}[-/]\d{2}[-/]\d{2}$'),
+             concat(regexp_replace(c, r'^(\d{4})[-/](\d{2})[-/](\d{2})$', '$1-$2-$3'), lit(' 00:00:00')))
+        .when(c.rlike(r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}$'),
+             regexp_replace(c, r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}:\d{2}:\d{2})$', '$3-$2-$1 $4'))
+        .when(c.rlike(r'^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$'),
+             concat(regexp_replace(c, r'^(\d{2})/(\d{2})/(\d{4}) (\d{2}:\d{2})$', '$3-$2-$1 $4'), lit(':00')))
+        .when(c.rlike(r'^\d{2}/\d{2}/\d{4}$'),
+             concat(regexp_replace(c, r'^(\d{2})/(\d{2})/(\d{4})$', '$3-$2-$1'), lit(' 00:00:00')))
+        .otherwise(lit(None).cast('string'))
     )
+    return to_timestamp(normalized, 'yyyy-MM-dd HH:mm:ss')
 
 # COMMAND ----------
 

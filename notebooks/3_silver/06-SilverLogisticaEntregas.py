@@ -32,61 +32,25 @@ df_flat = spark.sql("""
     SELECT
         upper(trim(delivery_id))         AS delivery_id,
         upper(trim(order_ref))           AS order_id,
-        carrier.name                     AS carrier_name,
-        carrier.mode                     AS carrier_mode,
+        carrier_name,
+        carrier_mode,
         upper(trim(delivery_status))     AS delivery_status,
-        coalesce(
-            to_timestamp(`timestamps.shipped_at`,   "yyyy-MM-dd'T'HH:mm:ss"),
-            to_timestamp(`timestamps.shipped_at`,   'yyyy-MM-dd HH:mm:ss'),
-            to_timestamp(`timestamps.shipped_at`,   'dd/MM/yyyy HH:mm'),
-            to_timestamp(`timestamps.shipped_at`,   'yyyy/MM/dd'),
-            cast(to_date(`timestamps.shipped_at`,   'yyyy-MM-dd') as timestamp)
-        )                                AS shipped_at,
-        coalesce(
-            to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
-            to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
-            to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
-            to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
-            cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
-        )                                AS delivered_at,
-        destination.state                AS dest_state,
-        destination.city                 AS dest_city,
+        shipped_at,
+        delivered_at,
+        destination_state                AS dest_state,
+        destination_city                 AS dest_city,
         cast(cost as double)             AS cost,
-        rastreamento_source,
-        datediff(
-            coalesce(
-                to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
-                to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
-                to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
-                to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
-                cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
-            ),
-            coalesce(
-                to_timestamp(`timestamps.shipped_at`, "yyyy-MM-dd'T'HH:mm:ss"),
-                to_timestamp(`timestamps.shipped_at`, 'yyyy-MM-dd HH:mm:ss'),
-                to_timestamp(`timestamps.shipped_at`, 'dd/MM/yyyy HH:mm'),
-                to_timestamp(`timestamps.shipped_at`, 'yyyy/MM/dd'),
-                cast(to_date(`timestamps.shipped_at`, 'yyyy-MM-dd') as timestamp)
-            )
-        )                                AS delivery_days,
-        datediff(
-            coalesce(
-                to_timestamp(`timestamps.delivered_at`, "yyyy-MM-dd'T'HH:mm:ss"),
-                to_timestamp(`timestamps.delivered_at`, 'yyyy-MM-dd HH:mm:ss'),
-                to_timestamp(`timestamps.delivered_at`, 'dd/MM/yyyy HH:mm'),
-                to_timestamp(`timestamps.delivered_at`, 'yyyy/MM/dd'),
-                cast(to_date(`timestamps.delivered_at`, 'yyyy-MM-dd') as timestamp)
-            ),
-            coalesce(
-                to_timestamp(`timestamps.shipped_at`, "yyyy-MM-dd'T'HH:mm:ss"),
-                to_timestamp(`timestamps.shipped_at`, 'yyyy-MM-dd HH:mm:ss'),
-                to_timestamp(`timestamps.shipped_at`, 'dd/MM/yyyy HH:mm'),
-                to_timestamp(`timestamps.shipped_at`, 'yyyy/MM/dd'),
-                cast(to_date(`timestamps.shipped_at`, 'yyyy-MM-dd') as timestamp)
-            )
-        ) > 7                            AS is_late
+        rastreamento_source
     FROM v_source
 """)
+
+df_flat = (
+    df_flat
+    .withColumn("shipped_at",    parse_timestamp_multi_format("shipped_at"))
+    .withColumn("delivered_at",  parse_timestamp_multi_format("delivered_at"))
+    .withColumn("delivery_days", datediff(col("delivered_at"), col("shipped_at")))
+    .withColumn("is_late",       datediff(col("delivered_at"), col("shipped_at")) > 7)
+)
 
 df_flat = normalize_uf_column(df_flat, "dest_state")
 

@@ -29,12 +29,13 @@ spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrRepl
 
 df_silver = spark.sql("""
     SELECT
-        upper(trim(channel_id))   AS channel_id,
-        trim(channel_name)        AS channel_name,
-        upper(trim(channel_type)) AS channel_type,
-        upper(trim(status))       AS status,
-        concat('>>', coalesce(upper(trim(channel_id)), 'NULL')) AS dsRefChave,
-        current_timestamp()       AS data_processamento
+        upper(trim(id_canal))    AS channel_id,
+        trim(nome_canal)         AS channel_name,
+        upper(trim(tipo_canal))  AS channel_type,
+        CASE WHEN upper(cast(ativo as string)) IN ('TRUE', '1', 'SIM', 'S', 'YES', 'ATIVO')
+             THEN 'ATIVO' ELSE 'INATIVO' END AS status,
+        concat('>>', coalesce(upper(trim(id_canal)), 'NULL')) AS dsRefChave,
+        current_timestamp()      AS data_processamento
     FROM v_source
 """)
 

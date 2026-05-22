@@ -28,29 +28,25 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = spark.sql("""
+df_raw = spark.sql("""
     SELECT
-        upper(trim(product.product_id))      AS product_code,
-        product.name                         AS product_name,
-        product.category                     AS category,
-        product.subcategory                  AS subcategory,
-        upper(trim(product.status))          AS status,
-        cast(pricing.list_price AS double)   AS list_price,
-        pricing.currency                     AS currency,
-        attributes.family                    AS family,
-        array_join(attributes.tags, '|')     AS tags,
-        coalesce(
-            to_timestamp(updated_at, "yyyy-MM-dd'T'HH:mm:ss"),
-            to_timestamp(updated_at, 'yyyy-MM-dd HH:mm:ss'),
-            to_timestamp(updated_at, 'dd/MM/yyyy HH:mm'),
-            to_timestamp(updated_at, 'yyyy/MM/dd'),
-            cast(to_date(updated_at, 'yyyy-MM-dd') AS timestamp)
-        )                                    AS updated_at,
+        upper(trim(product_id))              AS product_code,
+        product_name,
+        category,
+        subcategory,
+        upper(trim(product_status))          AS status,
+        list_price,
+        currency,
+        family,
+        array_join(tags, '|')                AS tags,
+        updated_at,
         rastreamento_source,
-        concat('>>', coalesce(upper(trim(product.product_id)), 'NULL')) AS dsRefChave,
+        concat('>>', coalesce(upper(trim(product_id)), 'NULL')) AS dsRefChave,
         current_timestamp()                  AS data_processamento
     FROM v_source
 """)
+
+df_silver = df_raw.withColumn("updated_at", parse_timestamp_multi_format("updated_at"))
 
 # COMMAND ----------
 

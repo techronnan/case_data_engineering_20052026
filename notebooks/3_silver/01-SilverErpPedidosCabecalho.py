@@ -28,49 +28,46 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = spark.sql("""
+df_raw = spark.sql("""
     SELECT
         upper(trim(order_id))        AS order_id,
         upper(trim(customer_code))   AS customer_code,
         upper(trim(seller_id))       AS seller_id,
-        upper(trim(channel_id))      AS channel_id,
-        upper(trim(region_code))     AS region_code,
-        coalesce(
-            to_date(order_date, 'yyyy-MM-dd'),
-            to_date(order_date, 'yyyy/MM/dd'),
-            to_date(order_date, 'dd/MM/yyyy'),
-            to_date(order_date, 'MM/dd/yyyy')
-        )                            AS order_date,
-        coalesce(
-            to_date(due_date, 'yyyy-MM-dd'),
-            to_date(due_date, 'yyyy/MM/dd'),
-            to_date(due_date, 'dd/MM/yyyy'),
-            to_date(due_date, 'MM/dd/yyyy')
-        )                            AS due_date,
+        NULL                         AS channel_id,
+        NULL                         AS region_code,
+        order_date,
+        promised_date,
         CASE
-            WHEN upper(status) IN ('FATURADO')                                    THEN 'FATURADO'
-            WHEN upper(status) IN ('CANCELADO')                                   THEN 'CANCELADO'
-            WHEN upper(status) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
-            WHEN upper(status) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
+            WHEN upper(status_order) IN ('FATURADO')                                    THEN 'FATURADO'
+            WHEN upper(status_order) IN ('CANCELADO')                                   THEN 'CANCELADO'
+            WHEN upper(status_order) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
+            WHEN upper(status_order) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
             ELSE 'INDEFINIDO'
         END                          AS status,
         cast(regexp_replace(gross_amount,    ',', '.') as double) AS gross_amount,
         cast(regexp_replace(discount_amount, ',', '.') as double) AS discount_amount,
         cast(regexp_replace(net_amount,      ',', '.') as double) AS net_amount,
-        payment_details.source       AS payment_source,
-        payment_details.priority     AS payment_priority,
+        get_json_object(payment_details, '$.source')   AS payment_source,
+        get_json_object(payment_details, '$.priority') AS payment_priority,
         (CASE
-            WHEN upper(status) IN ('FATURADO')                                    THEN 'FATURADO'
-            WHEN upper(status) IN ('CANCELADO')                                   THEN 'CANCELADO'
-            WHEN upper(status) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
-            WHEN upper(status) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
+            WHEN upper(status_order) IN ('FATURADO')                                    THEN 'FATURADO'
+            WHEN upper(status_order) IN ('CANCELADO')                                   THEN 'CANCELADO'
+            WHEN upper(status_order) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
+            WHEN upper(status_order) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
             ELSE 'INDEFINIDO'
         END) != 'INDEFINIDO'         AS has_valid_status,
-        rastreamento_source,
-        concat('>>', coalesce(upper(trim(order_id)), 'NULL')) AS dsRefChave,
-        current_timestamp()          AS data_processamento
+        rastreamento_source
     FROM v_source
 """)
+
+df_silver = (
+    df_raw
+    .withColumn("order_date", parse_date_multi_format("order_date"))
+    .withColumn("due_date",   parse_date_multi_format("promised_date"))
+    .drop("promised_date")
+    .withColumn("dsRefChave", concat(lit('>>'), coalesce(col('order_id'), lit('NULL'))))
+    .withColumn("data_processamento", current_timestamp())
+)
 
 print(f"Linhas saída   : {df_silver.count():,}")
 

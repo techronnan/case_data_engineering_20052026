@@ -31,27 +31,24 @@ spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrRepl
 df_dedup = spark.sql("""
     WITH ranked AS (
         SELECT
-            upper(trim(customer_code))  AS customer_code,
-            trim(name)                  AS name,
-            upper(trim(segment))        AS segment,
-            trim(city)                  AS city,
-            state,
-            upper(trim(region_code))    AS region_code,
-            coalesce(
-                to_date(created_at, 'yyyy-MM-dd'),
-                to_date(created_at, 'yyyy/MM/dd'),
-                to_date(created_at, 'dd/MM/yyyy'),
-                to_date(created_at, 'MM/dd/yyyy')
-            )                           AS created_at,
+            upper(trim(customer_id))    AS customer_code,
+            trim(nome_cliente)          AS name,
+            upper(trim(segmento))       AS segment,
+            trim(cidade)                AS city,
+            estado                      AS state,
+            NULL                        AS region_code,
+            data_cadastro,
             row_number() OVER (
-                PARTITION BY upper(trim(customer_code))
-                ORDER BY coalesce(
-                    to_date(created_at, 'yyyy-MM-dd'),
-                    to_date(created_at, 'yyyy/MM/dd'),
-                    to_date(created_at, 'dd/MM/yyyy'),
-                    to_date(created_at, 'MM/dd/yyyy')
-                ) DESC NULLS LAST
-            )                           AS _rn
+                PARTITION BY upper(trim(customer_id))
+                ORDER BY
+                    CASE
+                        WHEN data_cadastro RLIKE '^\\d{4}[-/]\\d{2}[-/]\\d{2}'
+                            THEN regexp_replace(data_cadastro, '^(\\d{4})[-/](\\d{2})[-/](\\d{2}).*', '$1-$2-$3')
+                        WHEN data_cadastro RLIKE '^\\d{2}/\\d{2}/\\d{4}'
+                            THEN regexp_replace(data_cadastro, '^(\\d{2})/(\\d{2})/(\\d{4}).*', '$3-$2-$1')
+                        ELSE NULL
+                    END DESC NULLS LAST
+            ) AS _rn
         FROM v_source
     )
     SELECT * EXCEPT (_rn) FROM ranked WHERE _rn = 1
@@ -59,6 +56,8 @@ df_dedup = spark.sql("""
 
 df_silver = (
     normalize_uf_column(df_dedup, "state")
+    .withColumn("created_at", parse_date_multi_format("data_cadastro"))
+    .drop("data_cadastro")
     .withColumn("dsRefChave",
         concat(lit('>>'), coalesce(col('customer_code'), lit('NULL'))))
     .withColumn("data_processamento", current_timestamp())

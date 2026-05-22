@@ -41,8 +41,8 @@ df_silver = spark.sql("""
                 ELSE upper(trim(regional_code))
             END                                AS regional_code,
             cast(active_flag as int)           AS active_flag,
-            region_name,
-            manager,
+            regional_name  AS region_name,
+            manager_name   AS manager,
             state,
             rastreamento_source
         FROM v_source

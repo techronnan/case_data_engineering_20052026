@@ -28,7 +28,7 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 
 spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrReplaceTempView('v_source')
 
-df_silver = spark.sql("""
+df_raw = spark.sql("""
     WITH normalizado AS (
         SELECT
             upper(trim(seller_id))   AS seller_id,
@@ -42,34 +42,36 @@ df_silver = spark.sql("""
                 WHEN 'CENTRO'   THEN 'CO'
                 ELSE upper(trim(regional_code))
             END                      AS regional_code,
-            coalesce(
-                to_date(hire_date, 'yyyy-MM-dd'),
-                to_date(hire_date, 'yyyy/MM/dd'),
-                to_date(hire_date, 'dd/MM/yyyy'),
-                to_date(hire_date, 'MM/dd/yyyy')
-            )                        AS hire_date,
+            hire_date,
             seller_name,
             rastreamento_source
         FROM v_source
     ),
     dedup AS (
         SELECT *,
-            row_number() OVER (PARTITION BY seller_id ORDER BY hire_date DESC NULLS LAST) AS _rn
+            row_number() OVER (
+                PARTITION BY seller_id
+                ORDER BY
+                    CASE
+                        WHEN hire_date RLIKE '^\\d{4}[-/]\\d{2}[-/]\\d{2}'
+                            THEN regexp_replace(hire_date, '^(\\d{4})[-/](\\d{2})[-/](\\d{2}).*', '$1-$2-$3')
+                        WHEN hire_date RLIKE '^\\d{2}/\\d{2}/\\d{4}'
+                            THEN regexp_replace(hire_date, '^(\\d{2})/(\\d{2})/(\\d{4}).*', '$3-$2-$1')
+                        ELSE NULL
+                    END DESC NULLS LAST
+            ) AS _rn
         FROM normalizado
     )
-    SELECT
-        seller_id,
-        canal_id,
-        status,
-        regional_code,
-        hire_date,
-        seller_name,
-        rastreamento_source,
-        concat('>>', coalesce(seller_id, 'NULL')) AS dsRefChave,
-        current_timestamp()                       AS data_processamento
-    FROM dedup
-    WHERE _rn = 1
+    SELECT seller_id, canal_id, status, regional_code, hire_date, seller_name, rastreamento_source
+    FROM dedup WHERE _rn = 1
 """)
+
+df_silver = (
+    df_raw
+    .withColumn("hire_date", parse_date_multi_format("hire_date"))
+    .withColumn("dsRefChave", concat(lit('>>'), coalesce(col('seller_id'), lit('NULL'))))
+    .withColumn("data_processamento", current_timestamp())
+)
 
 print(f"Silver (dedup): {df_silver.count():,}")
 

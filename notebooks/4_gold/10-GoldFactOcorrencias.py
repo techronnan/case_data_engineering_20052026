@@ -43,7 +43,6 @@ fact = spark.sql("""
         so.has_event_type,
         so.has_severity,
         so.created_at,
-        so.updated_at,
         concat('>>', coalesce(so.ticket_id, 'NULL')) AS dsRefChave,
         current_timestamp()                       AS data_processamento
     FROM v_so so
