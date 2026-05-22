@@ -17,8 +17,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'fact_entregas'
 tipo_carga           = 'delta'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['delivery_id']
+chave_upsert         = 'delivery_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_gold_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_gold_schema}/{nome_tabela}'
@@ -45,7 +45,6 @@ fact = spark.sql("""
         se.cost,
         se.delivery_days,
         se.is_late,
-        concat('>>', coalesce(se.delivery_id, 'NULL')) AS dsRefChave,
         current_timestamp()                         AS data_processamento
     FROM v_se se
     LEFT JOIN v_fp       fp     ON se.order_id                   = fp.order_id
@@ -68,7 +67,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.delivery_id = source.delivery_id
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')

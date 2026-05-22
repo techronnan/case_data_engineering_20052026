@@ -17,8 +17,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'fact_ocorrencias'
 tipo_carga           = 'delta'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['ticket_id']
+chave_upsert         = 'ticket_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_gold_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_gold_schema}/{nome_tabela}'
@@ -43,7 +43,6 @@ fact = spark.sql("""
         so.has_event_type,
         so.has_severity,
         so.created_at,
-        concat('>>', coalesce(so.ticket_id, 'NULL')) AS dsRefChave,
         current_timestamp()                       AS data_processamento
     FROM v_so so
     LEFT JOIN v_fp  fp ON so.order_id                 = fp.order_id
@@ -65,7 +64,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.ticket_id = source.ticket_id
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')

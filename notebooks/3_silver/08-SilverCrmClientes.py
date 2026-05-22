@@ -17,8 +17,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'crm_clientes'
 tipo_carga           = 'delta'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['customer_code']
+chave_upsert         = 'customer_code'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_silver_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_silver_schema}/{nome_tabela}'
@@ -58,8 +58,6 @@ df_silver = (
     normalize_uf_column(df_dedup, "state")
     .withColumn("created_at", parse_date_multi_format("data_cadastro"))
     .drop("data_cadastro")
-    .withColumn("dsRefChave",
-        concat(lit('>>'), coalesce(col('customer_code'), lit('NULL'))))
     .withColumn("data_processamento", current_timestamp())
 )
 
@@ -77,7 +75,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.customer_code = source.customer_code
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')

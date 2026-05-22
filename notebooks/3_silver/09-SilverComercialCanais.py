@@ -16,8 +16,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'comercial_canais'
 tipo_carga           = 'full'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['channel_id']
+chave_upsert         = 'channel_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_silver_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_silver_schema}/{nome_tabela}'
@@ -34,7 +34,6 @@ df_silver = spark.sql("""
         upper(trim(tipo_canal))  AS channel_type,
         CASE WHEN upper(cast(ativo as string)) IN ('TRUE', '1', 'SIM', 'S', 'YES', 'ATIVO')
              THEN 'ATIVO' ELSE 'INATIVO' END AS status,
-        concat('>>', coalesce(upper(trim(id_canal)), 'NULL')) AS dsRefChave,
         current_timestamp()      AS data_processamento
     FROM v_source
 """)
@@ -53,7 +52,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.channel_id = source.channel_id
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')

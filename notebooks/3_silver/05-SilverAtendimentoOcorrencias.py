@@ -17,8 +17,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'atendimento_ocorrencias'
 tipo_carga           = 'delta'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['ticket_id']
+chave_upsert         = 'ticket_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_silver_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_silver_schema}/{nome_tabela}'
@@ -40,7 +40,6 @@ df_raw = spark.sql("""
         upper(trim(severity))   IS NOT NULL AS has_severity,
         upper(trim(order_id))   IS NOT NULL AS has_order_ref,
         rastreamento_source,
-        concat('>>', coalesce(upper(trim(ticket_id)), 'NULL')) AS dsRefChave,
         current_timestamp()                                    AS data_processamento
     FROM v_source
 """)
@@ -61,7 +60,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.ticket_id = source.ticket_id
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')

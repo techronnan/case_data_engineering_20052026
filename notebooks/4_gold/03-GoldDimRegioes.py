@@ -16,8 +16,8 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'dim_regioes'
 tipo_carga           = 'full'
-chave_clusterby      = ['dsRefChave']
-chave_upsert         = 'dsRefChave'
+chave_clusterby      = ['regional_code']
+chave_upsert         = 'regional_code'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_gold_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_gold_schema}/{nome_tabela}'
@@ -35,7 +35,6 @@ df_dim = spark.sql("""
         manager                                    AS region_manager,
         state,
         1                                          AS InRegistroAtivo,
-        concat('>>', coalesce(regional_code, 'NULL')) AS dsRefChave,
         current_timestamp()                        AS data_processamento
     FROM v_source
 """)
@@ -55,7 +54,7 @@ else:
     spark.sql(f'''
         MERGE INTO {nome_gravacao_tabela} AS target
         USING df_incremental AS source
-        ON target.dsRefChave = source.dsRefChave
+        ON target.regional_code = source.regional_code
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')
