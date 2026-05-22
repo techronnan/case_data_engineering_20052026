@@ -1,5 +1,5 @@
 # Databricks notebook source
-%pip install -q openpyxl
+# MAGIC %pip install -q openpyxl
 
 # COMMAND ----------
 
@@ -21,7 +21,7 @@ from pyspark.sql.types import (
 )
 from pyspark.sql.window import Window
 import openpyxl
-from datetime import datetime
+from datetime import datetime, time
 import os
 import csv
 import json
