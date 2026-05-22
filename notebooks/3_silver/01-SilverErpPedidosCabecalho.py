@@ -1,5 +1,6 @@
 # Databricks notebook source
 
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -33,30 +34,14 @@ df_raw = spark.sql("""
         upper(trim(order_id))        AS order_id,
         upper(trim(customer_code))   AS customer_code,
         upper(trim(seller_id))       AS seller_id,
-        NULL                         AS channel_id,
-        NULL                         AS region_code,
         order_date,
         promised_date,
-        CASE
-            WHEN upper(status_order) IN ('FATURADO')                                    THEN 'FATURADO'
-            WHEN upper(status_order) IN ('CANCELADO')                                   THEN 'CANCELADO'
-            WHEN upper(status_order) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
-            WHEN upper(status_order) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
-            ELSE 'INDEFINIDO'
-        END                          AS status,
+        upper(trim(status_order))    AS status_order,
         cast(regexp_replace(gross_amount,    ',', '.') as double) AS gross_amount,
         cast(regexp_replace(discount_amount, ',', '.') as double) AS discount_amount,
         cast(regexp_replace(net_amount,      ',', '.') as double) AS net_amount,
-        get_json_object(payment_details, '$.source')   AS payment_source,
-        get_json_object(payment_details, '$.priority') AS payment_priority,
-        (CASE
-            WHEN upper(status_order) IN ('FATURADO')                                    THEN 'FATURADO'
-            WHEN upper(status_order) IN ('CANCELADO')                                   THEN 'CANCELADO'
-            WHEN upper(status_order) IN ('ENTREGUE')                                    THEN 'ENTREGUE'
-            WHEN upper(status_order) IN ('EM_SEPARACAO','EM SEPARACAO','EM_SEPARAÇÃO') THEN 'EM_SEPARACAO'
-            ELSE 'INDEFINIDO'
-        END) != 'INDEFINIDO'         AS has_valid_status,
-        rastreamento_source
+        payment_details,
+        last_update
     FROM v_source
 """)
 

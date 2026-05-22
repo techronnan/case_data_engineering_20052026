@@ -1,5 +1,6 @@
 # Databricks notebook source
 
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -31,23 +32,12 @@ spark.table(f'{var_environment}.{var_bronze_schema}.{nome_tabela}').createOrRepl
 df_silver = spark.sql("""
     SELECT
         upper(trim(order_id))                                        AS order_id,
+        item_seq,
         upper(trim(product_code))                                    AS product_code,
         cast(quantity as double)                                     AS quantity,
         cast(regexp_replace(unit_price, ',', '.') as double)         AS unit_price,
         cast(regexp_replace(total_item, ',', '.') as double)         AS total_item,
-        upper(trim(item_status))                                     AS item_status,
-        item_seq,
-        rastreamento_source,
-        cast(quantity as double) < 0                                 AS is_return,
-        cast(quantity as double) * cast(regexp_replace(unit_price, ',', '.') as double)
-                                                                     AS total_item_expected,
-        abs(
-            cast(regexp_replace(total_item, ',', '.') as double) -
-            cast(quantity as double) * cast(regexp_replace(unit_price, ',', '.') as double)
-        ) > 0.01                                                     AS total_item_diverge,
-        concat('>>', coalesce(upper(trim(order_id)), 'NULL'),
-               '>>', coalesce(cast(item_seq as string), 'NULL'))     AS dsRefChave,
-        current_timestamp()                                          AS data_processamento
+        upper(trim(item_status))                                     AS item_status
     FROM v_source
 """)
 
