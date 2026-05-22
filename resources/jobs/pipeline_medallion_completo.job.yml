@@ -1,0 +1,346 @@
+# ---------------------------------------------------------------------------
+# Job: pipeline_medallion_completo
+# DAG: Landing → Bronze (paralelo) → Silver (paralelo) → Gold Dims → Gold Facts
+# ---------------------------------------------------------------------------
+resources:
+  jobs:
+    pipeline_medallion_completo:
+      name: "[${bundle.target}] pipeline_medallion_completo"
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+
+      email_notifications:
+        on_failure:
+          - ronnan_ok@hotmail.com
+        on_success:
+          - ronnan_ok@hotmail.com
+      tasks:
+
+        # ── 0. Setup — cria catalog/schemas/volume se não existirem ─────────
+        - task_key: setup
+          notebook_task:
+            notebook_path: ../../notebooks/0_config/7-SetupCatalog.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        # ── 1. Landing ──────────────────────────────────────────────────────
+        - task_key: landing
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/00-LandingUploadSources.py
+
+        # ── 1. Bronze — ingestão paralela (todas dependem de landing) ───────
+        - task_key: bronze_erp_cabecalho
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/01-BronzeErpPedidosCabecalho.py
+
+        - task_key: bronze_erp_itens
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/02-BronzeErpPedidosItens.py
+
+        - task_key: bronze_legado_regioes
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/03-BronzeLegadoRegioes.py
+
+        - task_key: bronze_vendedores
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/04-BronzeVendedores.py
+
+        - task_key: bronze_atend_ocorrencias
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/05-BronzeAtendimentoOcorrencias.py
+
+        - task_key: bronze_logistica_entregas
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/06-BronzeLogisticaEntregas.py
+
+        - task_key: bronze_cadastro_produtos
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/07-BronzeCadastroProdutos.py
+
+        - task_key: bronze_crm_clientes
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/08-BronzeCrmClientes.py
+
+        - task_key: bronze_comercial_canais
+          depends_on: [{task_key: landing}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/09-BronzeComercialCanais.py
+
+        # ── 2. Silver — todas aguardam o Bronze completo ─────────────────────
+        - task_key: silver_erp_cabecalho
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/01-SilverErpPedidosCabecalho.py
+
+        - task_key: silver_erp_itens
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/02-SilverErpPedidosItens.py
+
+        - task_key: silver_legado_regioes
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/03-SilverLegadoRegioes.py
+
+        - task_key: silver_vendedores
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/04-SilverVendedores.py
+
+        - task_key: silver_atend_ocorrencias
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/05-SilverAtendimentoOcorrencias.py
+
+        - task_key: silver_logistica_entregas
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/06-SilverLogisticaEntregas.py
+
+        - task_key: silver_cadastro_produtos
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/07-SilverCadastroProdutos.py
+
+        - task_key: silver_crm_clientes
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/08-SilverCrmClientes.py
+
+        - task_key: silver_comercial_canais
+          depends_on:
+            - task_key: bronze_erp_cabecalho
+            - task_key: bronze_erp_itens
+            - task_key: bronze_legado_regioes
+            - task_key: bronze_vendedores
+            - task_key: bronze_atend_ocorrencias
+            - task_key: bronze_logistica_entregas
+            - task_key: bronze_cadastro_produtos
+            - task_key: bronze_crm_clientes
+            - task_key: bronze_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/09-SilverComercialCanais.py
+
+        # ── 3. Gold — todas aguardam o Silver completo ───────────────────────
+        - task_key: gold_dim_clientes
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/01-GoldDimClientes.py
+
+        - task_key: gold_dim_produtos
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/02-GoldDimProdutos.py
+
+        - task_key: gold_dim_regioes
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/03-GoldDimRegioes.py
+
+        - task_key: gold_dim_canais
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/04-GoldDimCanais.py
+
+        - task_key: gold_dim_vendedores
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/05-GoldDimVendedores.py
+
+        - task_key: gold_dim_tempo
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/06-GoldDimTempo.py
+
+        - task_key: gold_fact_pedidos
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/07-GoldFactPedidos.py
+
+        - task_key: gold_fact_itens_pedido
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/08-GoldFactItensPedido.py
+
+        - task_key: gold_fact_entregas
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/09-GoldFactEntregas.py
+
+        - task_key: gold_fact_ocorrencias
+          depends_on:
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+            - task_key: silver_legado_regioes
+            - task_key: silver_vendedores
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_logistica_entregas
+            - task_key: silver_cadastro_produtos
+            - task_key: silver_crm_clientes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/10-GoldFactOcorrencias.py
