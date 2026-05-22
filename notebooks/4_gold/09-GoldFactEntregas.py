@@ -72,5 +72,3 @@ else:
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)

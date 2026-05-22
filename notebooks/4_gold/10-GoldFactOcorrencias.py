@@ -70,35 +70,3 @@ else:
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
     ''')
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Verificação Final do Star Schema
-
-# COMMAND ----------
-
-spark.sql(f"""
-    SELECT 'fact_pedidos'      AS tabela, COUNT(*) AS linhas FROM {var_environment}.{var_gold_schema}.fact_pedidos
-    UNION ALL
-    SELECT 'fact_itens_pedido', COUNT(*) FROM {var_environment}.{var_gold_schema}.fact_itens_pedido
-    UNION ALL
-    SELECT 'fact_entregas',     COUNT(*) FROM {var_environment}.{var_gold_schema}.fact_entregas
-    UNION ALL
-    SELECT 'fact_ocorrencias',  COUNT(*) FROM {var_environment}.{var_gold_schema}.fact_ocorrencias
-    UNION ALL
-    SELECT 'dim_clientes',      COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_clientes
-    UNION ALL
-    SELECT 'dim_produtos',      COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_produtos
-    UNION ALL
-    SELECT 'dim_regioes',       COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_regioes
-    UNION ALL
-    SELECT 'dim_canais',        COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_canais
-    UNION ALL
-    SELECT 'dim_vendedores',    COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_vendedores
-    UNION ALL
-    SELECT 'dim_tempo',         COUNT(*) FROM {var_environment}.{var_gold_schema}.dim_tempo
-    ORDER BY tabela
-""").display()
