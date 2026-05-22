@@ -51,10 +51,6 @@ df_silver = spark.sql("""
     FROM v_source
 """)
 
-print(f"Linhas        : {df_silver.count():,}")
-print(f"Devoluções    : {df_silver.filter(col('is_return')).count():,}")
-print(f"Divergências  : {df_silver.filter(col('total_item_diverge')).count():,}")
-
 # COMMAND ----------
 
 table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
@@ -72,6 +68,4 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
+    ''')

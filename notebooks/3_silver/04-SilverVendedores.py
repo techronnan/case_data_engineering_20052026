@@ -73,8 +73,6 @@ df_silver = (
     .withColumn("data_processamento", current_timestamp())
 )
 
-print(f"Silver (dedup): {df_silver.count():,}")
-
 # COMMAND ----------
 
 table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
@@ -92,6 +90,4 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
+    ''')

@@ -67,8 +67,6 @@ df_silver = spark.sql("""
     WHERE _rn = 1
 """)
 
-print(f"Linhas silver : {df_silver.count():,}")
-
 # COMMAND ----------
 
 table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
@@ -86,6 +84,4 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
+    ''')

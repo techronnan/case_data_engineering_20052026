@@ -47,10 +47,6 @@ df_raw = spark.sql("""
 
 df_silver = df_raw.withColumn("created_at", parse_timestamp_multi_format("created_at"))
 
-print(f"Linhas : {df_silver.count():,}")
-df_silver.groupBy("status").count().show()
-df_silver.groupBy("event_type").count().orderBy("count", ascending=False).show()
-
 # COMMAND ----------
 
 table_exists = spark.catalog.tableExists(nome_gravacao_tabela)
@@ -68,6 +64,4 @@ else:
         ON target.dsRefChave = source.dsRefChave
         WHEN MATCHED AND source.data_processamento >= target.data_processamento THEN UPDATE SET *
         WHEN NOT MATCHED THEN INSERT *
-    ''').display()
-
-drop_v2checkpoint_feature(nome_gravacao_tabela)
+    ''')
