@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------
 # Job: pipeline_medallion_completo
-# DAG: Landing → Bronze (paralelo) → Silver (paralelo) → Gold Dims → Gold Facts
+# DAG: Setup → Landing (6 paralelas) → Bronze (9 paralelas) → Silver (9 paralelas) → Gold (10 paralelas)
 # ---------------------------------------------------------------------------
 resources:
   jobs:
@@ -25,59 +25,138 @@ resources:
             base_parameters:
               catalog: ${var.catalog}
 
-        # ── 1. Landing ──────────────────────────────────────────────────────
-        - task_key: landing
+        # ── 1. Landing — 6 notebooks em paralelo (todos dependem de setup) ──
+        - task_key: landing_general
           depends_on: [{task_key: setup}]
           notebook_task:
             notebook_path: ../../notebooks/1_landing/00-LandingUploadSources.py
 
-        # ── 1. Bronze — ingestão paralela (todas dependem de landing) ───────
+        - task_key: landing_csv
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/01-LandingUploadSourcesCsv.py
+
+        - task_key: landing_txt
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/02-LandingUploadSourcesTxt.py
+
+        - task_key: landing_json
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/03-LandingUploadSourcesJson.py
+
+        - task_key: landing_ndjson
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/04-LandingUploadSourcesNdjson.py
+
+        - task_key: landing_xlsx
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/05-LandingUploadSourcesXlsx.py
+
+        # ── 2. Bronze — 9 notebooks em paralelo (todas aguardam landing completo) ───
         - task_key: bronze_erp_cabecalho
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/01-BronzeErpPedidosCabecalho.py
 
         - task_key: bronze_erp_itens
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/02-BronzeErpPedidosItens.py
 
         - task_key: bronze_legado_regioes
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/03-BronzeLegadoRegioes.py
 
         - task_key: bronze_vendedores
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/04-BronzeVendedores.py
 
         - task_key: bronze_atend_ocorrencias
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/05-BronzeAtendimentoOcorrencias.py
 
         - task_key: bronze_logistica_entregas
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/06-BronzeLogisticaEntregas.py
 
         - task_key: bronze_cadastro_produtos
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/07-BronzeCadastroProdutos.py
 
         - task_key: bronze_crm_clientes
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/08-BronzeCrmClientes.py
 
         - task_key: bronze_comercial_canais
-          depends_on: [{task_key: landing}]
+          depends_on:
+            - task_key: landing_general
+            - task_key: landing_csv
+            - task_key: landing_txt
+            - task_key: landing_json
+            - task_key: landing_ndjson
+            - task_key: landing_xlsx
           notebook_task:
             notebook_path: ../../notebooks/2_bronze/09-BronzeComercialCanais.py
 
-        # ── 2. Silver — todas aguardam o Bronze completo ─────────────────────
+        # ── 3. Silver — 9 notebooks em paralelo (todas aguardam bronze completo) ─────
         - task_key: silver_erp_cabecalho
           depends_on:
             - task_key: bronze_erp_cabecalho
@@ -204,7 +283,7 @@ resources:
           notebook_task:
             notebook_path: ../../notebooks/3_silver/09-SilverComercialCanais.py
 
-        # ── 3. Gold — todas aguardam o Silver completo ───────────────────────
+        # ── 4. Gold — 10 notebooks em paralelo (todas aguardam silver completo) ──────
         - task_key: gold_dim_clientes
           depends_on:
             - task_key: silver_erp_cabecalho
