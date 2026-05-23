@@ -6,7 +6,7 @@
 # MAGIC # Entidade GoldFactEntregas
 # MAGIC
 # MAGIC Granularidade: 1 linha por entrega.
-# MAGIC Conecta a `fact_pedidos` via `order_key` e a `dim_tempo` para datas de envio/entrega.
+# MAGIC `order_key` gerado inline via Silver `erp_pedidos_cabecalho`. Datas via `dim_tempo`.
 
 # COMMAND ----------
 
@@ -25,13 +25,17 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 # COMMAND ----------
 
 spark.table(f'{var_environment}.{var_silver_schema}.logistica_entregas').createOrReplaceTempView('v_se')
-spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos').createOrReplaceTempView('v_fp')
+spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_cabecalho').createOrReplaceTempView('v_sp')
 spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo').createOrReplaceTempView('v_tmp')
 
 fact = spark.sql("""
+    WITH order_keys AS (
+        SELECT order_id, row_number() OVER (ORDER BY order_id) AS order_key
+        FROM v_sp
+    )
     SELECT
         row_number() OVER (ORDER BY se.delivery_id) AS delivery_key,
-        fp.order_key,
+        ok.order_key,
         se.delivery_id,
         d_ship.date_key                             AS shipped_date_key,
         d_del.date_key                              AS delivered_date_key,
@@ -45,7 +49,7 @@ fact = spark.sql("""
         se.is_late,
         current_timestamp()                         AS data_processamento
     FROM v_se se
-    LEFT JOIN v_fp       fp     ON se.order_id                   = fp.order_id
+    LEFT JOIN order_keys ok     ON se.order_id                   = ok.order_id
     LEFT JOIN v_tmp      d_ship ON cast(se.shipped_at AS date)   = d_ship.date AND d_ship.InRegistroAtivo = 1
     LEFT JOIN v_tmp      d_del  ON cast(se.delivered_at AS date) = d_del.date  AND d_del.InRegistroAtivo  = 1
 """)

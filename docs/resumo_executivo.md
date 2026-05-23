@@ -18,7 +18,7 @@ Pipeline end-to-end que transforma **9 fontes brutas heterogêneas** (CSV, JSON,
 | Notebooks Silver | 9 | Limpeza, normalização, deduplicação, flags de qualidade |
 | Notebooks Gold | 10 | Star Schema — 6 dimensões + 4 fatos com surrogate keys |
 | Config centralizados | 7 | Init, Libs, Variables, Functions, Setup, Monitoring, Cleaner |
-| Asset Bundle | 1 | Pipeline orquestrado com DAG paralelo — targets `dev` e `prod` |
+| Asset Bundle | 1 | Pipeline orquestrado com DAG em duas ondas no Gold — targets `dev` e `prod` |
 
 ---
 
@@ -30,6 +30,15 @@ CSV / JSON / XLSX  →  UC Volume  →  Delta (bruto)  →  Delta (limpo)  →  
                      /Volumes/                          normalizado        6 dim + 4 fato
                                     AutoLoader /                          ↓
                                     openpyxl                         Power BI / Tableau
+```
+
+**DAG do job (orquestração):**
+```
+Silver (9 paralelas)
+  └─► Gold Onda 1 — Dims (6 paralelas): dim_clientes, dim_produtos, dim_regioes,
+  │                                      dim_canais, dim_vendedores, dim_tempo
+  └─► Gold Onda 2 — Facts (4 paralelas): fact_pedidos, fact_itens_pedido,
+                                          fact_entregas, fact_ocorrencias
 ```
 
 **Camadas:**
@@ -46,8 +55,11 @@ CSV / JSON / XLSX  →  UC Volume  →  Delta (bruto)  →  Delta (limpo)  →  
 |---------|-----------|
 | **Medallion 3 camadas** | Bronze preserva o original para reprocessamento sem perda; Silver isola limpeza; Gold isola modelagem |
 | **Star Schema no Gold** | Modelo dimensional é o padrão nativo de Power BI/Tableau — analista acessa direto sem transformações |
+| **Gold lê apenas Silver** | Nenhuma tabela Gold lê outra Gold — dims e facts são todos derivados diretamente do Silver (ver seção Boas Práticas) |
+| **Surrogate keys inline via CTE** | `row_number() OVER (ORDER BY natural_key)` replicado nas facts que precisam do `order_key` — evita dependência Gold→Gold |
+| **DAG em duas ondas no Gold** | Onda 1 (dims em paralelo) → Onda 2 (facts em paralelo) — garante que dims existam quando facts forem carregadas |
 | **AutoLoader com `availableNow=True`** | Micro-batch que processa apenas arquivos novos — idempotente e eficiente |
-| **`dsRefChave = >> || PK`** | Chave determinística para MERGE INTO — garante idempotência em qualquer reprocessamento |
+| **`dsRefChave = >> \|\| PK`** | Chave determinística para MERGE INTO — garante idempotência em qualquer reprocessamento |
 | **SparkSQL nas transformações Silver/Gold** | Mais legível que chains PySpark para JOINs complexos; SQL é a língua franca para revisão |
 | **`spark.catalog.tableExists()`** | API Unity Catalog nativa — não depende de queries em system tables |
 | **openpyxl sem pandas** | Serverless não suporta pandas por padrão; `openpyxl` + `spark.createDataFrame()` é suficiente |
@@ -90,6 +102,67 @@ dim_regioes ───────────┘     (order_key)     fact_ocorre
 - Taxa de cancelamento — `COUNT(CASE WHEN status = 'CANCELADO')` / `COUNT(*)`
 - Taxa de atraso — `AVG(is_late)` sobre `fact_entregas`
 - Volume de pedidos por região/canal/categoria/período — JOINs simples com dimensões
+
+---
+
+## Boas Práticas de Modelagem e Arquitetura Medallion
+
+### Regras de dependência entre camadas
+
+A regra fundamental do Medallion é que cada camada **só lê da camada imediatamente anterior**:
+
+```
+Landing → Bronze → Silver → Gold
+```
+
+Violações dessa regra criam acoplamento frágil: falhas se propagam em cascata, o reprocessamento deixa de ser idempotente e o DAG de orquestração se torna um grafo arbitrário difícil de manter.
+
+### Gold: o que é e o que não é permitido
+
+| Situação | Permitido? | Motivação |
+|----------|-----------|-----------|
+| Fact lê Silver + Dims | Sim | Padrão Star Schema — fact resolve surrogate keys das dims |
+| Dim lê Silver | Sim | Cada dim é derivada independentemente da sua fonte Silver |
+| Fact lê outra Fact | **Não** | Cria dependência em runtime; falha em cascata; DAG quebrado |
+| Dim lê outra Dim (snowflake) | **Não** | Anti-padrão Kimball; desnormalizar na própria dim usando Silver |
+
+### Surrogate keys: como manter consistência sem dependência Gold→Gold
+
+O problema clássico: `fact_itens_pedido` precisa do `order_key` gerado em `fact_pedidos`. A solução é **reproduzir a surrogate key via CTE no próprio notebook**, usando a mesma fórmula e a mesma fonte Silver:
+
+```sql
+-- Padrão adotado neste projeto (idêntico ao usado em fact_pedidos)
+WITH order_keys AS (
+    SELECT order_id,
+           row_number() OVER (ORDER BY order_id) AS order_key
+    FROM silver.erp_pedidos_cabecalho
+)
+SELECT ok.order_key, ... FROM silver.erp_pedidos_itens si
+LEFT JOIN order_keys ok ON si.order_id = ok.order_id
+```
+
+Isso funciona porque a fórmula é **determinística** — dado o mesmo conjunto de `order_id` no Silver, a surrogate key gerada é sempre a mesma.
+
+### DAG de orquestração: estrutura correta para Gold
+
+```
+Silver (todas em paralelo)
+  │
+  ├─► Onda 1 Gold — Dims (todas em paralelo)
+  │     dim_clientes, dim_produtos, dim_regioes, dim_canais, dim_vendedores, dim_tempo
+  │
+  └─► Onda 2 Gold — Facts (todas em paralelo, após dims)
+        fact_pedidos        → depende de dim_clientes, dim_vendedores, dim_tempo
+        fact_itens_pedido   → depende de dim_produtos
+        fact_entregas       → depende de dim_tempo
+        fact_ocorrencias    → depende de dim_tempo
+```
+
+Facts não dependem umas das outras — todas podem rodar em paralelo na Onda 2.
+
+### Evite snowflake em dimensões
+
+`dim_vendedores` originalmente lia `dim_regioes` e `dim_canais` para obter as surrogate keys `region_key` e `channel_key`. Isso é *snowflaking* — cria uma cadeia Gold→Gold desnecessária. A correção é gerar as surrogate keys diretamente do Silver usando a mesma fórmula `row_number() OVER (ORDER BY natural_key)`.
 
 ---
 

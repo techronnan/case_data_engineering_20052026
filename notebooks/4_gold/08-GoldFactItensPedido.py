@@ -6,7 +6,7 @@
 # MAGIC # Entidade GoldFactItensPedido
 # MAGIC
 # MAGIC Granularidade: 1 linha por item de pedido.
-# MAGIC Conecta a `fact_pedidos` via `order_key` e a `dim_produtos` via `product_key`.
+# MAGIC `order_key` gerado inline via Silver `erp_pedidos_cabecalho`. `product_key` via `dim_produtos`.
 
 # COMMAND ----------
 
@@ -25,13 +25,17 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 # COMMAND ----------
 
 spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_itens').createOrReplaceTempView('v_si')
-spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos').createOrReplaceTempView('v_fp')
+spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_cabecalho').createOrReplaceTempView('v_sp')
 spark.table(f'{var_environment}.{var_gold_schema}.dim_produtos').createOrReplaceTempView('v_prod')
 
 fact = spark.sql("""
+    WITH order_keys AS (
+        SELECT order_id, row_number() OVER (ORDER BY order_id) AS order_key
+        FROM v_sp
+    )
     SELECT
         row_number() OVER (ORDER BY si.order_id, si.item_seq) AS item_key,
-        fp.order_key,
+        ok.order_key,
         prod.product_key,
         si.order_id,
         si.item_seq,
@@ -41,8 +45,8 @@ fact = spark.sql("""
         si.item_status,
         current_timestamp()                                    AS data_processamento
     FROM v_si si
-    LEFT JOIN v_fp   fp   ON si.order_id     = fp.order_id
-    LEFT JOIN v_prod prod ON si.product_code = prod.product_id AND prod.InRegistroAtivo = 1
+    LEFT JOIN order_keys ok   ON si.order_id     = ok.order_id
+    LEFT JOIN v_prod     prod ON si.product_code = prod.product_id AND prod.InRegistroAtivo = 1
 """)
 
 

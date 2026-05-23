@@ -5,7 +5,7 @@
 # MAGIC %md
 # MAGIC # Entidade GoldDimVendedores
 # MAGIC
-# MAGIC Dimensão de vendedores. Join com `dim_regioes` e `dim_canais` para resolver FKs.
+# MAGIC Dimensão de vendedores. Surrogate keys de região e canal gerados inline a partir do Silver.
 
 # COMMAND ----------
 
@@ -24,23 +24,31 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 # COMMAND ----------
 
 spark.table(f'{var_environment}.{var_silver_schema}.vendedores').createOrReplaceTempView('v_vend')
-spark.table(f'{var_environment}.{var_gold_schema}.dim_regioes').createOrReplaceTempView('v_reg')
-spark.table(f'{var_environment}.{var_gold_schema}.dim_canais').createOrReplaceTempView('v_can')
+spark.table(f'{var_environment}.{var_silver_schema}.legado_regioes').createOrReplaceTempView('v_reg_s')
+spark.table(f'{var_environment}.{var_silver_schema}.comercial_canais').createOrReplaceTempView('v_can_s')
 
 df_dim = spark.sql("""
+    WITH reg_keys AS (
+        SELECT regional_code, row_number() OVER (ORDER BY regional_code) AS region_key
+        FROM v_reg_s
+    ),
+    can_keys AS (
+        SELECT channel_id, row_number() OVER (ORDER BY channel_id) AS channel_key
+        FROM v_can_s
+    )
     SELECT
         row_number() OVER (ORDER BY v.seller_id) AS seller_key,
         v.seller_id,
         v.seller_name,
-        r.region_key,
-        c.channel_key,
+        rk.region_key,
+        ck.channel_key,
         v.hire_date,
         v.status,
         1                                         AS InRegistroAtivo,
         current_timestamp()                       AS data_processamento
     FROM v_vend v
-    LEFT JOIN v_reg r ON v.regional_code = r.regional_code AND r.InRegistroAtivo = 1
-    LEFT JOIN v_can c ON v.canal_id      = c.channel_id    AND c.InRegistroAtivo = 1
+    LEFT JOIN reg_keys rk ON v.regional_code = rk.regional_code
+    LEFT JOIN can_keys ck ON v.canal_id      = ck.channel_id
 """)
 
 

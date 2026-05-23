@@ -6,7 +6,7 @@
 # MAGIC # Entidade GoldFactOcorrencias
 # MAGIC
 # MAGIC Granularidade: 1 linha por ticket de atendimento.
-# MAGIC Conecta a `fact_pedidos` via `order_key` e a `dim_tempo` via `created_date_key`.
+# MAGIC `order_key` gerado inline via Silver `erp_pedidos_cabecalho`. Data via `dim_tempo`.
 
 # COMMAND ----------
 
@@ -25,13 +25,17 @@ print(f'nome_gravacao_tabela : {nome_gravacao_tabela}')
 # COMMAND ----------
 
 spark.table(f'{var_environment}.{var_silver_schema}.atendimento_ocorrencias').createOrReplaceTempView('v_so')
-spark.table(f'{var_environment}.{var_gold_schema}.fact_pedidos').createOrReplaceTempView('v_fp')
+spark.table(f'{var_environment}.{var_silver_schema}.erp_pedidos_cabecalho').createOrReplaceTempView('v_sp')
 spark.table(f'{var_environment}.{var_gold_schema}.dim_tempo').createOrReplaceTempView('v_tmp')
 
 fact = spark.sql("""
+    WITH order_keys AS (
+        SELECT order_id, row_number() OVER (ORDER BY order_id) AS order_key
+        FROM v_sp
+    )
     SELECT
         row_number() OVER (ORDER BY so.ticket_id) AS ticket_key,
-        fp.order_key,
+        ok.order_key,
         t.date_key                                AS created_date_key,
         so.ticket_id,
         so.order_id,
@@ -43,8 +47,8 @@ fact = spark.sql("""
         so.created_at,
         current_timestamp()                       AS data_processamento
     FROM v_so so
-    LEFT JOIN v_fp  fp ON so.order_id                 = fp.order_id
-    LEFT JOIN v_tmp t  ON cast(so.created_at AS date) = t.date AND t.InRegistroAtivo = 1
+    LEFT JOIN order_keys ok ON so.order_id                 = ok.order_id
+    LEFT JOIN v_tmp      t  ON cast(so.created_at AS date) = t.date AND t.InRegistroAtivo = 1
 """)
 
 
