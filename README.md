@@ -367,7 +367,7 @@ ORDER BY camada, tabela_nome;
 databricks --version
 
 # Autenticar
-databricks auth login --host https://dbc-9940a479-70fc.cloud.databricks.com
+databricks auth login --host https://<seu-workspace>.cloud.databricks.com
 ```
 
 ### Deploy e execução

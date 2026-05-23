@@ -10,9 +10,11 @@ __pycache__/
 ai-dev-kit/
 .ai-dev-kit/
 
-# Claude Code (configurações locais do assistente)
-.claude/skills/
-.claude/cache/
+# Claude Code (configurações locais do assistente — não necessário para rodar o projeto)
+.claude/
+
+# MCP local config (paths e profiles locais da máquina)
+.mcp.json
 
 # Databricks IDE (gerado automaticamente pelo plugin)
 .databricks/

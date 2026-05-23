@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "databricks": {
-      "command": "C:/Users/ronna/github_projects/case_data_engineering_20052026/ai-dev-kit/.venv/Scripts/python.exe",
-      "args": ["C:/Users/ronna/github_projects/case_data_engineering_20052026/ai-dev-kit/repo/databricks-mcp-server/run_server.py"],
-      "env": {"DATABRICKS_CONFIG_PROFILE": "AZDO"}
-    }
-  }
-}

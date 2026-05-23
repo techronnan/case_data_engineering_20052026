@@ -19,14 +19,10 @@ targets:
   dev:
     mode: development
     default: true
-    workspace:
-      host: https://dbc-9940a479-70fc.cloud.databricks.com
     variables:
       catalog: dev
 
   prod:
     mode: production
-    workspace:
-      host: https://dbc-9940a479-70fc.cloud.databricks.com
     variables:
       catalog: prod
