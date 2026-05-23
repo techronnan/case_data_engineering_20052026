@@ -33,7 +33,6 @@ df_dim = spark.sql("""
         segment,
         city,
         state,
-        region_code,
         created_at,
         1                                           AS InRegistroAtivo,
         current_timestamp()                         AS data_processamento
