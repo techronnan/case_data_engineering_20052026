@@ -34,11 +34,6 @@ def parse_timestamp_multi_format(col_name: str):
 
 # COMMAND ----------
 
-def normalize_decimal_value(col_name: str):
-    """Converte número com vírgula decimal (BR) para DoubleType."""
-    return regexp_replace(col(col_name), ",", ".").cast(DoubleType())
-
-
 UF_MAP = {
     "sao paulo": "SP", "são paulo": "SP", "s. paulo": "SP",
     "rio de janeiro": "RJ", "minas gerais": "MG",
@@ -72,102 +67,6 @@ def normalize_uf_column(df: DataFrame, col_name: str) -> DataFrame:
         )
     )
 
-
-STATUS_PEDIDO_MAP = {
-    "FATURADO": "FATURADO", "faturado": "FATURADO",
-    "CANCELADO": "CANCELADO", "cancelado": "CANCELADO",
-    "ENTREGUE": "ENTREGUE",  "entregue": "ENTREGUE",
-    "EM_SEPARACAO": "EM_SEPARACAO", "em_separacao": "EM_SEPARACAO",
-    "em separacao": "EM_SEPARACAO", "EM SEPARACAO": "EM_SEPARACAO",
-}
-
-
-def normalize_status_pedido(col_name: str):
-    """Mapeia status de pedido para vocabulário canônico."""
-    from pyspark.sql.functions import create_map
-    from itertools import chain
-    mapping_expr = create_map([lit(x) for x in chain(*STATUS_PEDIDO_MAP.items())])
-    return coalesce(
-        mapping_expr[col(col_name)],
-        when(col(col_name).isNull(), lit("INDEFINIDO")),
-        lit("INDEFINIDO")
-    )
-
-# COMMAND ----------
-
-def add_ingestion_metadata(df: DataFrame, source_file: str) -> DataFrame:
-    """Adiciona colunas de rastreabilidade (_source_file, _ingested_at) para Bronze."""
-    return (
-        df
-        .withColumn("_source_file", lit(source_file))
-        .withColumn("_ingested_at", current_timestamp())
-    )
-
-# COMMAND ----------
-
-def write_full_table(df: DataFrame, table: str, overwrite_schema: bool = True) -> int:
-    (df.write
-       .format("delta")
-       .mode("overwrite")
-       .option("overwriteSchema", str(overwrite_schema).lower())
-       .saveAsTable(table))
-    count = spark.table(table).count()
-    print(f"  [FULL] {table} → {count:,} linhas gravadas")
-    return count
-
-
-def write_delta_merge(df: DataFrame, table: str, pk_cols: list,
-                      temp_view: str = "_src_updates") -> int:
-    df.createOrReplaceTempView(temp_view)
-    spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {table}
-        USING DELTA
-        AS SELECT * FROM {temp_view} WHERE 1 = 0
-    """)
-    on_clause = " AND ".join([f"tgt.`{c}` = src.`{c}`" for c in pk_cols])
-    spark.sql(f"""
-        MERGE INTO {table} AS tgt
-        USING {temp_view}  AS src
-        ON {on_clause}
-        WHEN MATCHED     THEN UPDATE SET *
-        WHEN NOT MATCHED THEN INSERT *
-    """)
-    count = spark.table(table).count()
-    print(f"  [DELTA] {table} → {count:,} linhas totais | MERGE por {pk_cols}")
-    return count
-
-
-write_delta = write_full_table
-
-# COMMAND ----------
-
-def certify_table_quality(table: str, pk_cols: list, min_rows: int = 1) -> int:
-    """Certifica qualidade básica após carga: contagem mínima, PKs sem nulos, sem duplicatas."""
-    df    = spark.table(table)
-    total = df.count()
-    errors = []
-
-    if total < min_rows:
-        errors.append(f"Linhas insuficientes: {total:,} < mínimo {min_rows:,}")
-
-    for pk in pk_cols:
-        nulls = df.filter(col(pk).isNull()).count()
-        if nulls > 0:
-            errors.append(f"PK '{pk}' com {nulls:,} valor(es) nulo(s)")
-
-    if pk_cols:
-        dupes = total - df.dropDuplicates(pk_cols).count()
-        if dupes > 0:
-            errors.append(f"Duplicatas por {pk_cols}: {dupes:,} registros")
-
-    if errors:
-        print(f"\n  [CERT FALHOU] {table}")
-        for e in errors:
-            print(f"    ✗ {e}")
-        raise AssertionError(f"Certificação falhou em {table}: {len(errors)} problema(s)")
-
-    print(f"  [CERT OK] {table} | {total:,} linhas | PKs {pk_cols} válidas")
-    return total
 
 # COMMAND ----------
 
@@ -229,11 +128,8 @@ def upsert_delta_live(nome_tabela, caminho_gravacao, merge_condition, table_id, 
 
 # COMMAND ----------
 
-def process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert):
-    """Carga completa (overwrite) usada na primeira execução ou quando tipo_carga='full'.
-
-    Registra automaticamente resultado na pipeline_controller após a gravação.
-    """
+def process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela):
+    """Carga completa (overwrite) na primeira execução ou quando tipo_carga='full'. Registra na pipeline_controller."""
     import time
     _inicio = time.time()
     _erro   = ''
@@ -257,13 +153,6 @@ def process_data_load(df, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tab
         log_table_execution(nome_gravacao_tabela, _duracao, _status, _linhas, _erro)
     return _linhas
 
-
-def drop_v2checkpoint_feature(table_name: str):
-    """Remove v2Checkpoint feature da tabela Delta se existir (compatibilidade entre runtimes)."""
-    try:
-        spark.sql(f"ALTER TABLE {table_name} DROP FEATURE v2Checkpoint IF EXISTS")
-    except Exception:
-        pass
 
 # COMMAND ----------
 
@@ -311,4 +200,4 @@ def log_table_execution(tabela: str, duracao_segundos: float = 0.0,
 
 # COMMAND ----------
 
-print("✓ Functions carregadas | Parse, Normalize, Write, Certify, AutoLoader, Monitoring")
+print("✓ Functions carregadas | Parse, Normalize, AutoLoader, Write, Monitoring")

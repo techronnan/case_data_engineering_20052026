@@ -17,8 +17,6 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'vendedores'
 tipo_carga           = 'delta'
-chave_clusterby      = ['seller_id']
-chave_upsert         = 'seller_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_silver_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_silver_schema}/{nome_tabela}'
@@ -80,7 +78,7 @@ df_silver.createOrReplaceTempView('df_incremental')
 
 if tipo_carga == 'full' or not table_exists:
     print('Primeira Carga ou Carga Full')
-    process_data_load(df_silver, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert)
+    process_data_load(df_silver, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela)
 else:
     print('Entrou na condição MERGE')
     spark.sql(f'''

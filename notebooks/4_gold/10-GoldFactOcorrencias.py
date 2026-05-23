@@ -17,8 +17,6 @@
 nome_catalogo        = var_environment
 nome_tabela          = 'fact_ocorrencias'
 tipo_carga           = 'delta'
-chave_clusterby      = ['ticket_id']
-chave_upsert         = 'ticket_id'
 
 nome_gravacao_tabela    = f'{nome_catalogo}.{var_gold_schema}.{nome_tabela}'
 caminho_gravacao_tabela = f'/delta/{var_gold_schema}/{nome_tabela}'
@@ -58,7 +56,7 @@ fact.createOrReplaceTempView('df_incremental')
 
 if tipo_carga == 'full' or not table_exists:
     print('Primeira Carga ou Carga Full')
-    process_data_load(fact, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela, chave_clusterby, chave_upsert)
+    process_data_load(fact, tipo_carga, nome_gravacao_tabela, caminho_gravacao_tabela)
 else:
     print('Entrou na condição MERGE')
     spark.sql(f'''

@@ -65,26 +65,13 @@ for table in ALL_TABLES:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### OPTIMIZE — compacta arquivos pequenos (Z-Order nas fatos)
+# MAGIC ### OPTIMIZE — compacta arquivos pequenos
 
 # COMMAND ----------
 
-ZORDER_CONFIG = {
-    "fact_pedidos":      "order_date_key",
-    "fact_itens_pedido": "order_key",
-    "fact_entregas":     "order_key",
-    "fact_ocorrencias":  "order_key",
-}
-
 for table in ALL_TABLES:
-    table_name = table.split(".")[-1]
     try:
-        if table_name in ZORDER_CONFIG:
-            z_col = ZORDER_CONFIG[table_name]
-            spark.sql(f"OPTIMIZE {table} ZORDER BY ({z_col})")
-            print(f"[OPTIMIZE] OK  {table} (ZORDER BY {z_col})")
-        else:
-            spark.sql(f"OPTIMIZE {table}")
-            print(f"[OPTIMIZE] OK  {table}")
+        spark.sql(f"OPTIMIZE {table}")
+        print(f"[OPTIMIZE] OK  {table}")
     except Exception as e:
         print(f"[OPTIMIZE] SKIP {table} — {e}")
