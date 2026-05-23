@@ -34,7 +34,10 @@ df_raw = spark.sql("""
         upper(trim(seller_id))       AS seller_id,
         order_date,
         promised_date,
-        upper(trim(status_order))    AS status_order,
+        CASE
+            WHEN trim(status_order) IS NULL OR trim(status_order) = '' THEN 'INDEFINIDO'
+            ELSE regexp_replace(upper(trim(status_order)), '\\s+', '_')
+        END                          AS status_order,
         cast(regexp_replace(gross_amount,    ',', '.') as double) AS gross_amount,
         cast(regexp_replace(discount_amount, ',', '.') as double) AS discount_amount,
         cast(regexp_replace(net_amount,      ',', '.') as double) AS net_amount,
