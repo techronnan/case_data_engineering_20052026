@@ -54,7 +54,7 @@ display(spark.sql("""
         round(SUM(discount_amount), 2)                                  AS total_descontos,
         round(SUM(net_amount), 2)                                       AS receita_liquida,
         round(AVG(net_amount), 2)                                       AS ticket_medio,
-        round(SUM(discount_amount) / NULLIF(SUM(gross_amount), 0) * 100, 1) AS pct_desconto,
+        round(SUM(discount_amount) / NULLIF(SUM(gross_amount), 0) * 100, 1) AS desconto_pct,
         round(COUNT(CASE WHEN status = 'CANCELADO' THEN 1 END)
               / COUNT(*) * 100, 1)                                      AS taxa_cancelamento_pct
     FROM fact_pedidos
@@ -72,7 +72,7 @@ display(spark.sql("""
         status,
         COUNT(*)                                              AS qtd_pedidos,
         round(SUM(net_amount), 2)                            AS receita_liquida,
-        round(COUNT(*) / SUM(COUNT(*)) OVER () * 100, 1)    AS pct_total
+        round(COUNT(*) / SUM(COUNT(*)) OVER () * 100, 1)    AS total_pct
     FROM fact_pedidos
     GROUP BY status
     ORDER BY qtd_pedidos DESC
@@ -280,7 +280,7 @@ display(spark.sql("""
         severity                                                          AS severidade,
         status                                                            AS status_ticket,
         COUNT(*)                                                          AS total_ocorrencias,
-        round(COUNT(*) / SUM(COUNT(*)) OVER () * 100, 1)                 AS pct_total
+        round(COUNT(*) / SUM(COUNT(*)) OVER () * 100, 1)                 AS total_pct
     FROM fact_ocorrencias
     GROUP BY event_type, severity, status
     ORDER BY total_ocorrencias DESC
@@ -342,7 +342,7 @@ display(spark.sql("""
         round(AVG(fp.gross_amount), 2)                      AS receita_bruta_media,
         round(AVG(fp.discount_amount), 2)                   AS desconto_medio,
         round(AVG(fp.net_amount), 2)                        AS receita_liquida_media,
-        round(AVG(fp.discount_amount / NULLIF(fp.gross_amount, 0)) * 100, 1) AS pct_desconto_medio
+        round(AVG(fp.discount_amount / NULLIF(fp.gross_amount, 0)) * 100, 1) AS desconto_medio_pct
     FROM fact_pedidos fp
     LEFT JOIN dim_canais c ON fp.channel_key = c.channel_key
     WHERE fp.status != 'CANCELADO'
@@ -365,7 +365,7 @@ display(spark.sql("""
             - COUNT(DISTINCT fe.order_key)                  AS pedidos_sem_entrega,
         round((COUNT(DISTINCT fp.order_id)
             - COUNT(DISTINCT fe.order_key))
-            / COUNT(DISTINCT fp.order_id) * 100, 1)        AS pct_sem_entrega
+            / COUNT(DISTINCT fp.order_id) * 100, 1)        AS sem_entrega_pct
     FROM fact_pedidos fp
     LEFT JOIN fact_entregas fe ON fp.order_key = fe.order_key
     WHERE fp.status NOT IN ('CANCELADO', 'INDEFINIDO')
@@ -384,7 +384,7 @@ display(spark.sql("""
         COUNT(DISTINCT fp.order_id)                         AS total_pedidos,
         round(SUM(fp.net_amount), 2)                        AS receita_liquida,
         round(SUM(fe.cost), 2)                              AS custo_total_entregas,
-        round(SUM(fe.cost) / NULLIF(SUM(fp.net_amount), 0) * 100, 1) AS pct_custo_sobre_receita
+        round(SUM(fe.cost) / NULLIF(SUM(fp.net_amount), 0) * 100, 1) AS custo_sobre_receita_pct
     FROM fact_pedidos fp
     LEFT JOIN fact_entregas fe ON fp.order_key = fe.order_key
     LEFT JOIN dim_regioes r    ON fp.region_key = r.region_key
