@@ -42,8 +42,8 @@ fact = spark.sql("""
         sp.gross_amount,
         sp.discount_amount,
         sp.net_amount,
-        get_json_object(sp.payment_details, '$.payment_source')     AS payment_source,
-        get_json_object(sp.payment_details, '$.payment_priority')   AS payment_priority,
+        get_json_object(sp.payment_details, '$.source')            AS payment_source,
+        get_json_object(sp.payment_details, '$.priority')          AS payment_priority,
         sp.due_date,
         current_timestamp()                                         AS data_processamento
     FROM v_sp sp

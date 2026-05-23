@@ -39,8 +39,6 @@ fact = spark.sql("""
         si.unit_price,
         si.total_item,
         si.item_status,
-        si.is_return,
-        si.total_item_diverge,
         current_timestamp()                                    AS data_processamento
     FROM v_si si
     LEFT JOIN v_fp   fp   ON si.order_id     = fp.order_id
