@@ -34,7 +34,7 @@ df_dedup = spark.sql("""
             upper(trim(segmento))       AS segment,
             trim(cidade)                AS city,
             estado                      AS state,
-            NULL                        AS region_code,
+            cast(NULL as string)        AS region_code,
             data_cadastro,
             row_number() OVER (
                 PARTITION BY upper(trim(customer_id))
