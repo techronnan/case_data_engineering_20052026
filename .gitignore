@@ -26,6 +26,9 @@ CLAUDE.md
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
+# Scripts de geração de documentos (ferramentas locais)
+docs/_gerar_documentos.py
+
 # OS
 .DS_Store
 Thumbs.db
