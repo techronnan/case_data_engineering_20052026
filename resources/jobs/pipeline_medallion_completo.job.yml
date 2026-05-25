@@ -1,0 +1,238 @@
+# ---------------------------------------------------------------------------
+# Job: pipeline_medallion_completo
+# DAG: Setup → Landing (6 paralelas) → Bronze (9 paralelas)
+#      → Silver (9 paralelas) → Gold Onda 1 (6 dims) → Gold Onda 2 (4 facts)
+# ---------------------------------------------------------------------------
+resources:
+  jobs:
+    pipeline_medallion_completo:
+      name: "[${bundle.target}] pipeline_medallion_completo"
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+
+      email_notifications:
+        on_failure:
+          - ronnan_ok@hotmail.com
+        on_success:
+          - ronnan_ok@hotmail.com
+
+      tasks:
+
+        # ── 0. Setup ──────────────────────────────────────────────────────────
+        - task_key: setup
+          notebook_task:
+            notebook_path: ../../notebooks/0_config/7-SetupCatalog.py
+            base_parameters:
+              catalog: ${var.catalog}
+
+        # ── 1. Landing (6 paralelas) ──────────────────────────────────────────
+        - task_key: landing_general
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/00-LandingUploadSources.py
+
+        - task_key: landing_csv
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/01-LandingUploadSourcesCsv.py
+
+        - task_key: landing_txt
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/02-LandingUploadSourcesTxt.py
+
+        - task_key: landing_json
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/03-LandingUploadSourcesJson.py
+
+        - task_key: landing_ndjson
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/04-LandingUploadSourcesNdjson.py
+
+        - task_key: landing_xlsx
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/1_landing/05-LandingUploadSourcesXlsx.py
+
+        # ── 2. Bronze (9 paralelas, cada uma depende do formato de arquivo) ───
+        - task_key: bronze_erp_cabecalho
+          depends_on: [{task_key: landing_csv}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/01-BronzeErpPedidosCabecalho.py
+
+        - task_key: bronze_erp_itens
+          depends_on: [{task_key: landing_csv}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/02-BronzeErpPedidosItens.py
+
+        - task_key: bronze_legado_regioes
+          depends_on: [{task_key: landing_txt}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/03-BronzeLegadoRegioes.py
+
+        - task_key: bronze_vendedores
+          depends_on: [{task_key: landing_csv}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/04-BronzeVendedores.py
+
+        - task_key: bronze_atend_ocorrencias
+          depends_on: [{task_key: landing_ndjson}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/05-BronzeAtendimentoOcorrencias.py
+
+        - task_key: bronze_logistica_entregas
+          depends_on: [{task_key: landing_json}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/06-BronzeLogisticaEntregas.py
+
+        - task_key: bronze_cadastro_produtos
+          depends_on: [{task_key: landing_json}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/07-BronzeCadastroProdutos.py
+
+        - task_key: bronze_crm_clientes
+          depends_on: [{task_key: landing_xlsx}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/08-BronzeCrmClientes.py
+
+        - task_key: bronze_comercial_canais
+          depends_on: [{task_key: landing_xlsx}]
+          notebook_task:
+            notebook_path: ../../notebooks/2_bronze/09-BronzeComercialCanais.py
+
+        # ── 3. Silver (9 paralelas, cada uma depende do seu Bronze) ───────────
+        - task_key: silver_erp_cabecalho
+          max_retries: 0
+          depends_on: [{task_key: bronze_erp_cabecalho}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/01-SilverErpPedidosCabecalho.py
+
+        - task_key: silver_erp_itens
+          max_retries: 0
+          depends_on: [{task_key: bronze_erp_itens}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/02-SilverErpPedidosItens.py
+
+        - task_key: silver_legado_regioes
+          max_retries: 0
+          depends_on: [{task_key: bronze_legado_regioes}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/03-SilverLegadoRegioes.py
+
+        - task_key: silver_vendedores
+          max_retries: 0
+          depends_on: [{task_key: bronze_vendedores}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/04-SilverVendedores.py
+
+        - task_key: silver_atend_ocorrencias
+          max_retries: 0
+          depends_on: [{task_key: bronze_atend_ocorrencias}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/05-SilverAtendimentoOcorrencias.py
+
+        - task_key: silver_logistica_entregas
+          max_retries: 0
+          depends_on: [{task_key: bronze_logistica_entregas}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/06-SilverLogisticaEntregas.py
+
+        - task_key: silver_cadastro_produtos
+          max_retries: 0
+          depends_on: [{task_key: bronze_cadastro_produtos}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/07-SilverCadastroProdutos.py
+
+        - task_key: silver_crm_clientes
+          max_retries: 0
+          depends_on: [{task_key: bronze_crm_clientes}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/08-SilverCrmClientes.py
+
+        - task_key: silver_comercial_canais
+          max_retries: 0
+          depends_on: [{task_key: bronze_comercial_canais}]
+          notebook_task:
+            notebook_path: ../../notebooks/3_silver/09-SilverComercialCanais.py
+
+        # ── 4. Gold Onda 1 — Dims (6 paralelas, cada uma depende do seu Silver) ─
+        - task_key: gold_dim_clientes
+          max_retries: 0
+          depends_on: [{task_key: silver_crm_clientes}]
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/01-GoldDimClientes.py
+
+        - task_key: gold_dim_produtos
+          max_retries: 0
+          depends_on: [{task_key: silver_cadastro_produtos}]
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/02-GoldDimProdutos.py
+
+        - task_key: gold_dim_regioes
+          max_retries: 0
+          depends_on: [{task_key: silver_legado_regioes}]
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/03-GoldDimRegioes.py
+
+        - task_key: gold_dim_canais
+          max_retries: 0
+          depends_on: [{task_key: silver_comercial_canais}]
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/04-GoldDimCanais.py
+
+        - task_key: gold_dim_vendedores
+          max_retries: 0
+          depends_on:
+            - task_key: silver_vendedores
+            - task_key: silver_legado_regioes
+            - task_key: silver_comercial_canais
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/05-GoldDimVendedores.py
+
+        - task_key: gold_dim_tempo
+          max_retries: 0
+          depends_on: [{task_key: setup}]
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/06-GoldDimTempo.py
+
+        # ── 4. Gold Onda 2 — Facts (4 paralelas, dependem das dims e silvers lidos) ─
+        - task_key: gold_fact_pedidos
+          max_retries: 0
+          depends_on:
+            - task_key: gold_dim_clientes
+            - task_key: gold_dim_vendedores
+            - task_key: gold_dim_tempo
+            - task_key: silver_erp_cabecalho
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/07-GoldFactPedidos.py
+
+        - task_key: gold_fact_itens_pedido
+          max_retries: 0
+          depends_on:
+            - task_key: gold_dim_produtos
+            - task_key: silver_erp_cabecalho
+            - task_key: silver_erp_itens
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/08-GoldFactItensPedido.py
+
+        - task_key: gold_fact_entregas
+          max_retries: 0
+          depends_on:
+            - task_key: gold_dim_tempo
+            - task_key: silver_logistica_entregas
+            - task_key: silver_erp_cabecalho
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/09-GoldFactEntregas.py
+
+        - task_key: gold_fact_ocorrencias
+          max_retries: 0
+          depends_on:
+            - task_key: gold_dim_tempo
+            - task_key: silver_atend_ocorrencias
+            - task_key: silver_erp_cabecalho
+          notebook_task:
+            notebook_path: ../../notebooks/4_gold/10-GoldFactOcorrencias.py

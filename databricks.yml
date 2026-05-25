@@ -1,0 +1,28 @@
+# Declarative Automation Bundle — case_data_engineering_20052026
+# Documentação: https://docs.databricks.com/dev-tools/bundles/index.html
+
+bundle:
+  name: case_data_engineering_20052026
+
+include:
+  - resources/**/*.yml
+
+variables:
+  env:
+    default: dev
+    description: "Ambiente alvo (dev | staging | prod)"
+  catalog:
+    default: dev
+    description: "Catálogo Unity Catalog alvo (dev | prod)"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    variables:
+      catalog: dev
+
+  prod:
+    mode: production
+    variables:
+      catalog: prod

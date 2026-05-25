@@ -1,0 +1,34 @@
+# Ambientes Python
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# AI Dev Kit (ferramentas locais — não fazem parte do projeto)
+ai-dev-kit/
+.ai-dev-kit/
+
+# Claude Code (configurações locais do assistente — não necessário para rodar o projeto)
+.claude/
+CLAUDE.md
+
+# MCP local config (paths e profiles locais da máquina)
+.mcp.json
+
+# Databricks IDE (gerado automaticamente pelo plugin)
+.databricks/
+
+# VS Code
+.vscode/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Scripts de geração de documentos (ferramentas locais)
+docs/_gerar_documentos.py
+
+# OS
+.DS_Store
+Thumbs.db
