@@ -10,7 +10,15 @@
 | Orquestração | Declarative Automation Bundles — DAB (`databricks.yml`) |
 | Ambientes | `dev` e `prod` — catálogos Unity Catalog independentes |
 | Monitoramento | `{catalog}.monitoring.pipeline_controller` |
-| Autor | Ronnan — ronnan_ok@hotmail.com |
+| Autor | Ronnan |
+
+### Artefatos de documentação
+
+| Artefato | Formato | Descrição |
+|----------|---------|-----------|
+| [docs/resumo_executivo.pptx](docs/resumo_executivo.pptx) | PowerPoint | Resumo executivo técnico — 6 slides (case item 6.7) |
+| [docs/resumo_executivo.md](docs/resumo_executivo.md) | Markdown | Mesma cobertura do PPTX em formato texto |
+| [docs/documentacao_tecnica.docx](docs/documentacao_tecnica.docx) | Word | Documentação técnica completa — premissas, decisões, qualidade, limitações (case item 6.6) |
 
 ---
 
@@ -751,6 +759,12 @@ case_data_engineering_20052026/
 ├── databricks.yml                              # Declarative Automation Bundle — targets dev e prod
 ├── resources/jobs/
 │   └── pipeline_medallion_completo.job.yml     # DAG completo do pipeline
+├── docs/                                       # Documentação de entrega
+│   ├── resumo_executivo.md                     # Resumo executivo técnico em Markdown
+│   ├── resumo_executivo.pptx                   # Resumo executivo — 6 slides (case item 6.7)
+│   └── documentacao_tecnica.docx              # Documentação técnica completa (case item 6.6)
+├── case_artifacts/
+│   └── Case - Data Engineer.pdf                # Enunciado original do case
 ├── sources/                                    # 9 arquivos fonte originais
 │   ├── erp_pedidos_cabecalho_2025.csv
 │   ├── erp_pedidos_itens_2025.csv

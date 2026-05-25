@@ -1,7 +1,7 @@
 # Resumo Executivo Técnico
 
 **Case Técnico — Engenheiro de Dados**
-Autor: Ronnan — ronnan_ok@hotmail.com
+Autor: Ronnan
 
 ---
 
