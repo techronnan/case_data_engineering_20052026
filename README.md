@@ -24,10 +24,14 @@
 6. [Contratos entre Camadas](#6-contratos-entre-camadas)
 7. [Referência de Configuração](#7-referência-de-configuração)
 8. [Padrões e Convenções](#8-padrões-e-convenções)
-9. [Guia Operacional](#9-guia-operacional)
-10. [Estrutura do Repositório](#10-estrutura-do-repositório)
-11. [Decisões Técnicas](#11-decisões-técnicas)
-12. [Limitações e Roadmap](#12-limitações-e-roadmap)
+9. [Critérios de Aceite por Camada](#9-critérios-de-aceite-por-camada)
+10. [Protocolo de Verificação](#10-protocolo-de-verificação)
+11. [Como Estender o Pipeline](#11-como-estender-o-pipeline)
+12. [Guia Operacional](#12-guia-operacional)
+13. [Estrutura do Repositório](#13-estrutura-do-repositório)
+14. [Decisões Técnicas](#14-decisões-técnicas)
+15. [Limitações e Roadmap](#15-limitações-e-roadmap)
+16. [Changelog](#16-changelog)
 
 ---
 
@@ -507,7 +511,168 @@ caminho_gravacao_tabela = f'/delta/{var_*_schema}/{nome_tabela}'
 
 ---
 
-## 9. Guia Operacional
+## 9. Critérios de Aceite por Camada
+
+Define o que significa cada camada estar **concluída e correta**. Use como checklist após um run ou ao revisar uma mudança.
+
+### Landing ✓
+- [ ] 9 arquivos copiados para o Volume (`/Volumes/{catalog}/landing/storage_files/systems/`)
+- [ ] Nenhum arquivo com 0 bytes
+- [ ] Subdiretório por sistema criado (ex: `erp_cabecalho/`, `crm/`)
+- [ ] Log com `SUCESSO` em `pipeline_controller` para todas as tasks Landing
+
+### Bronze ✓
+- [ ] 9 tabelas existem em `{catalog}.bronze.*`
+- [ ] Todas têm colunas `dsRefChave` e `rastreamento_source`
+- [ ] Nenhuma tabela com 0 linhas
+- [ ] Schema evolution não quebrou execuções anteriores
+- [ ] Log com `SUCESSO` em `pipeline_controller` para todas as tasks Bronze
+
+### Silver ✓
+- [ ] 9 tabelas existem em `{catalog}.silver.*`
+- [ ] Colunas de data são tipo `DATE` ou `TIMESTAMP` — nenhuma como string
+- [ ] `status_order` contém apenas: `FATURADO`, `EM_SEPARACAO`, `ENTREGUE`, `CANCELADO`, `INDEFINIDO`
+- [ ] `is_late` é tipo `BOOLEAN`
+- [ ] IDs de chave estão em UPPER CASE sem espaços
+- [ ] Log com `SUCESSO` em `pipeline_controller` para todas as tasks Silver
+
+### Gold — Dimensões ✓
+- [ ] 6 tabelas `dim_*` existem em `{catalog}.gold.*`
+- [ ] `dim_tempo` tem exatamente **1461 linhas** (2024-01-01 a 2027-12-31)
+- [ ] Surrogate keys são únicos em cada dimensão
+- [ ] `InRegistroAtivo = 1` em 100% das linhas de cada dimensão
+- [ ] `dim_produtos` contém apenas registros com `status = 'ATIVO'`
+- [ ] Log com `SUCESSO` para todas as tasks Gold Onda 1
+
+### Gold — Fatos ✓
+- [ ] 4 tabelas `fact_*` existem em `{catalog}.gold.*`
+- [ ] `fact_pedidos`: linhas = linhas de `silver.erp_pedidos_cabecalho`
+- [ ] FKs não-nulas > 90% em todas as facts (pedidos sem dados de dim ficam NULL por LEFT JOIN)
+- [ ] `gross_amount`, `net_amount`, `cost` são tipo `DOUBLE` — sem NULL inesperado
+- [ ] Log com `SUCESSO` para todas as tasks Gold Onda 2
+
+---
+
+## 10. Protocolo de Verificação
+
+Execute estas queries após cada run para confirmar integridade. Todas devem retornar sem alertas.
+
+### 1. Resumo do último run
+
+```sql
+SELECT camada, tabela_nome, status_execucao, linhas_processadas, duracao_segundos
+FROM dev.monitoring.pipeline_controller
+WHERE status_execucao = 'FALHA'
+ORDER BY data_execucao DESC;
+-- Esperado: 0 linhas
+```
+
+### 2. Contagem por camada
+
+```sql
+SELECT
+  'bronze' AS camada, COUNT(*) AS tabelas,
+  SUM(CASE WHEN status_execucao = 'SUCESSO' THEN 1 ELSE 0 END) AS ok
+FROM dev.monitoring.pipeline_controller
+WHERE camada = 'bronze'
+UNION ALL
+SELECT 'silver', COUNT(*),
+  SUM(CASE WHEN status_execucao = 'SUCESSO' THEN 1 ELSE 0 END)
+FROM dev.monitoring.pipeline_controller WHERE camada = 'silver'
+UNION ALL
+SELECT 'gold', COUNT(*),
+  SUM(CASE WHEN status_execucao = 'SUCESSO' THEN 1 ELSE 0 END)
+FROM dev.monitoring.pipeline_controller WHERE camada = 'gold';
+-- Esperado: bronze=9/9, silver=9/9, gold=10/10
+```
+
+### 3. Validação de status canônico
+
+```sql
+SELECT status_order, COUNT(*) AS qtd
+FROM dev.silver.erp_pedidos_cabecalho
+WHERE status_order NOT IN ('FATURADO','EM_SEPARACAO','ENTREGUE','CANCELADO','INDEFINIDO')
+GROUP BY status_order;
+-- Esperado: 0 linhas
+```
+
+### 4. dim_tempo — cobertura de datas
+
+```sql
+SELECT COUNT(*) AS total_dias FROM dev.gold.dim_tempo;
+-- Esperado: 1461
+```
+
+### 5. Integridade de surrogate keys
+
+```sql
+-- Surrogate keys únicos em fact_pedidos
+SELECT COUNT(*) AS duplicatas FROM (
+  SELECT order_key, COUNT(*) AS n FROM dev.gold.fact_pedidos
+  GROUP BY order_key HAVING n > 1
+);
+-- Esperado: 0
+```
+
+### 6. Cobertura de FKs em fact_pedidos
+
+```sql
+SELECT
+  round(SUM(CASE WHEN customer_key IS NULL THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) AS customer_null_pct,
+  round(SUM(CASE WHEN seller_key   IS NULL THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) AS seller_null_pct,
+  round(SUM(CASE WHEN order_date_key IS NULL THEN 1 ELSE 0 END) / COUNT(*) * 100, 1) AS date_null_pct
+FROM dev.gold.fact_pedidos;
+-- Alerta se qualquer valor > 10%
+```
+
+---
+
+## 11. Como Estender o Pipeline
+
+### Adicionar uma nova fonte de dados
+
+Siga esta sequência. Não pule etapas — cada uma garante que a próxima funcione.
+
+**1. Arquivo fonte**
+- Adicionar o arquivo em `sources/`
+- Registrar em `SOURCE_MAP` em `notebooks/0_config/2-Variables.py`
+- Adicionar o nome ao array `EXPECTED_FILES`
+
+**2. Landing**
+- Reusar o notebook de landing do mesmo formato se já existir
+- Se for formato novo: criar `notebooks/1_landing/0N-LandingUploadSources{Formato}.py` seguindo o padrão existente
+- Adicionar task no YAML dependendo de `setup`
+
+**3. Bronze**
+- Criar `notebooks/2_bronze/NN-Bronze{Sistema}.py`
+- Usar `initialize_bronze_context()` com `container_source`, `nome_arquivo`, `file_name_saida`
+- Para XLSX: usar padrão openpyxl (ver `08-BronzeCrmClientes.py`)
+- Para demais: usar AutoLoader com `cloudFiles.format` correto
+- Adicionar task no YAML dependendo do landing do seu formato
+
+**4. Silver**
+- Criar `notebooks/3_silver/NN-Silver{Sistema}.py`
+- Aplicar regras: `upper(trim())` nos IDs, `parse_date_multi_format()` nas datas, `regexp_replace(',','.')` nos decimais
+- MERGE INTO por chave natural com `UPDATE SET *`
+- Adicionar task no YAML dependendo do seu Bronze
+
+**5. Gold (se necessário)**
+- **Nova dimensão**: criar `notebooks/4_gold/NN-GoldDim{Entidade}.py`, carga `full`, `row_number()` como surrogate key
+- **Novo fato**: criar `notebooks/4_gold/NN-GoldFact{Entidade}.py`, carga `delta`, gerar FKs via LEFT JOIN ou CTE inline
+- **Regra crítica**: fact nunca lê outro fact — gerar `order_key` via CTE do Silver
+- Adicionar tasks no YAML na onda correta (dims antes, facts depois)
+
+**6. Atualizar a spec**
+- `README.md` seção 2 (Contratos de Fonte): nova linha na tabela
+- `README.md` seção 3 (DAG): nova task e dependências
+- `README.md` seção 4 (Schemas Gold): schema da nova tabela, se Gold
+- `README.md` seção 5 (Transformação): regras aplicadas na Silver
+- `README.md` seção 9 (Critérios de Aceite): critério para a nova camada, se aplicável
+- `CLAUDE.md` seção Estado Atual: atualizar contagem de tabelas
+
+---
+
+## 12. Guia Operacional
 
 ### Pré-requisitos
 
@@ -579,7 +744,7 @@ ORDER BY data_execucao DESC;
 
 ---
 
-## 10. Estrutura do Repositório
+## 13. Estrutura do Repositório
 
 ```
 case_data_engineering_20052026/
@@ -651,7 +816,7 @@ case_data_engineering_20052026/
 
 ---
 
-## 11. Decisões Técnicas
+## 14. Decisões Técnicas
 
 | # | Decisão | Motivação |
 |---|---------|-----------|
@@ -673,7 +838,7 @@ case_data_engineering_20052026/
 
 ---
 
-## 12. Limitações e Roadmap
+## 15. Limitações e Roadmap
 
 ### Limitações conhecidas
 
@@ -697,3 +862,21 @@ case_data_engineering_20052026/
 | E5 | Testes de DQ formais | Great Expectations ou Databricks DQ — completude, unicidade, integridade referencial |
 | E6 | `COMMENT ON TABLE/COLUMN` | Autodocumentação das tabelas Gold no Unity Catalog |
 | E7 | `dim_tempo` dinâmica | Geração baseada no range de datas real dos dados — sem hard-code |
+
+---
+
+## 16. Changelog
+
+Registro de decisões e mudanças significativas no projeto. Atualizar sempre que uma seção da spec mudar.
+
+| Data | Mudança | Impacto |
+|------|---------|---------|
+| 2026-05-25 | Adicionadas seções 9–11 e 16 ao README (spec-driven: critérios de aceite, verificação, extensão, changelog) | Spec mais completa seguindo princípios SDD e Harness Engineering |
+| 2026-05-25 | Criado `CLAUDE.md` com instruções para agentes AI | Contexto persistente entre sessões; evita re-derivação de decisões |
+| 2026-05-25 | Nomes de colunas percentuais padronizados para sufixo `_pct` no notebook analytics | Consistência de nomenclatura |
+| 2026-05-25 | Silver `erp_pedidos_cabecalho`: status normalizado — `regexp_replace('\s+','_')` + `INDEFINIDO` para vazio | Eliminado `EM SEPARACAO` duplicado; status canônico garantido |
+| 2026-05-23 | README reescrito como spec canônica (schemas, contratos, DAG, enums) | Documentação alinhada com estado real do código |
+| 2026-05-23 | Segurança: workspace URL removida do `databricks.yml`; `.claude/` removido do tracking | Repositório seguro para publicação pública |
+| 2026-05-23 | Anti-pattern Gold→Gold removido: `dim_vendedores` lê Silver; facts geram `order_key` inline via CTE | Paralelismo real no Gold; sem dependência circular |
+| 2026-05-23 | DAG ativado com dependências reais por formato: Landing (6) → Bronze (9 por formato) → Silver (9) → Gold Onda 1 (6 dims) → Gold Onda 2 (4 facts) | Pipeline end-to-end funcional com 35 tasks |
+| 2026-05-23 | Notebook `5_analytics/00-AnaliseNegocio.py` criado | Responde às 5 perguntas de negócio do case diretamente nas tabelas Gold |

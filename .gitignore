@@ -12,6 +12,7 @@ ai-dev-kit/
 
 # Claude Code (configurações locais do assistente — não necessário para rodar o projeto)
 .claude/
+CLAUDE.md
 
 # MCP local config (paths e profiles locais da máquina)
 .mcp.json
