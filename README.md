@@ -6,8 +6,8 @@
 |------|---------|
 | Arquitetura | Medallion: Landing → Bronze → Silver → Gold |
 | Modelagem | Star Schema Kimball — 6 dimensões + 4 fatos |
-| Plataforma | Databricks Serverless + Delta Lake + Unity Catalog |
-| Orquestração | Databricks Asset Bundles (`databricks.yml`) |
+| Plataforma | Databricks Free Edition + Delta Lake + Unity Catalog |
+| Orquestração | Declarative Automation Bundles — DAB (`databricks.yml`) |
 | Ambientes | `dev` e `prod` — catálogos Unity Catalog independentes |
 | Monitoramento | `{catalog}.monitoring.pipeline_controller` |
 | Autor | Ronnan — ronnan_ok@hotmail.com |
@@ -748,7 +748,7 @@ ORDER BY data_execucao DESC;
 
 ```
 case_data_engineering_20052026/
-├── databricks.yml                              # Asset Bundle — targets dev e prod
+├── databricks.yml                              # Declarative Automation Bundle — targets dev e prod
 ├── resources/jobs/
 │   └── pipeline_medallion_completo.job.yml     # DAG completo do pipeline
 ├── sources/                                    # 9 arquivos fonte originais
@@ -856,7 +856,7 @@ case_data_engineering_20052026/
 | # | Evolução | Impacto esperado |
 |---|----------|-----------------|
 | E1 | SCD Tipo 2 em `dim_clientes` e `dim_vendedores` | Preserva histórico de alterações para análises temporais |
-| E2 | Spark Declarative Pipelines (ex-DLT) | Pipelines declarativas com expectativas de qualidade nativas e linhagem automática |
+| E2 | Lakeflow Spark Declarative Pipelines (ex-DLT) | Pipelines declarativas com expectativas de qualidade nativas e linhagem automática |
 | E3 | Camada `gold_agg` | Tabelas pré-calculadas por mês/canal/região — reduz latência de dashboards |
 | E4 | Alertas automáticos | Extensão do `pipeline_controller` com webhook ou Databricks SQL Alerts |
 | E5 | Testes de DQ formais | Great Expectations ou Databricks DQ — completude, unicidade, integridade referencial |
